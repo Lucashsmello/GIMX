@@ -952,7 +952,6 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
   }
 
   multiplier *= controller_get_axis_scale(controller->ctype, axis);
-  multiplier *= 100;
   dz *= controller_get_axis_scale(controller->ctype, axis);
 
   if(which == AXIS_X)
@@ -998,7 +997,7 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
 
   if(val != 0)
   {
-	fr = sqrt(x*x + y*y) * gimx_params.frequency_scale * multiplier; //magnitude or norm of the vector (x,y) multiplied by the sensibility.
+	fr = sqrt(x*x + y*y) * gimx_params.frequency_scale; //magnitude or norm of the vector (x,y).
 	r = pow(fr,exp);
     val *= multiplier;
     z = (val/fabs(val)) * fabs(val) * r / fr;
