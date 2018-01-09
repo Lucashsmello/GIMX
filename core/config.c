@@ -938,6 +938,8 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
   int min_axis, max_axis;
   int new_state;
   int axis = axis_props->axis;
+  double fr;
+  double r;
 
   max_axis = controller_get_max_signed(controller->ctype, axis);
   if(axis_props->props == AXIS_PROP_CENTERED)
@@ -950,6 +952,7 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
   }
 
   multiplier *= controller_get_axis_scale(controller->ctype, axis);
+  multiplier *= 100;
   dz *= controller_get_axis_scale(controller->ctype, axis);
 
   if(which == AXIS_X)
@@ -995,7 +998,10 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
 
   if(val != 0)
   {
-    z = multiplier * (val/fabs(val)) * pow(fabs(val), exp);
+	fr = sqrt(x*x + y*y) * gimx_params.frequency_scale * multiplier; //magnitude or norm of the vector (x,y) multiplied by the sensibility.
+	r = pow(fr,exp);
+    val *= multiplier;
+    z = (val/fabs(val)) * fabs(val) * r / fr;
   }
   
   if(mode == E_MOUSE_MODE_AIMING)
@@ -1044,7 +1050,7 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
     /*
      * Compute the motion that wasn't applied due to the double to integer conversion.
      */
-    motion_residue = (val/fabs(val)) * ( fabs(val) - pow(fabs(ztrunk)/multiplier, 1/exp) );
+    motion_residue = (val/fabs(val)) * ( fabs(val) - fabs(ztrunk)*fr/r ) / multiplier;
     if(fabs(motion_residue) < 0.0039)//allow 256 subpositions
     {
       motion_residue = 0;
