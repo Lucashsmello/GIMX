@@ -1064,10 +1064,17 @@ static double mouse2axis_orig(int device, s_adapter* controller, int which, doub
   return motion_residue;
 }
 
+extern boolean MOUSE2AXIS_DEBUG;
+
 static double mouse2axis(int device, s_adapter* controller, int which, double x, double y,
 		s_axis_props* axis_props, double exp, double multiplier, int dead_zone, e_shape shape,
 		e_mouse_mode mode) {
 	if (exp >= 1.095) {
+		if(exp>1.225 && exp < 1.235){ 
+			MOUSE2AXIS_DEBUG=true;
+		}else{
+			MOUSE2AXIS_DEBUG=false;
+		}
 		mouse2axis_config m2a_config;
 		m2a_config.motion_residue_extrapolation = true;
 		m2a_config.preserve_angle = true;

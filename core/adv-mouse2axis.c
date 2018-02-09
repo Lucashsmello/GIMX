@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <time.h>
+     
 
 typedef struct {
 	int x;
@@ -25,7 +27,7 @@ static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, in
 	double radius_ratio, xbar, ybar;
 	double x_mouse_abs = fabs(x_mouse);
 	double y_mouse_abs = fabs(y_mouse);
-	double cur_distance, lowest_distance = (x_mouse_abs + y_mouse_abs) * (x_mouse_abs + y_mouse_abs);
+	double cur_distance, lowest_distance = (x_mouse_abs + y_mouse_abs) * (x_mouse_abs + y_mouse_abs) + 1;
 
 	for (int i = 0; i <= 127; i++) {
 		for (int j = 0; j <= 127; j++) {
@@ -64,6 +66,8 @@ static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, in
 	return closest_point;
 }
 
+boolean MOUSE2AXIS_DEBUG=false;
+
 double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_axis_props* axis_props,
 		double multiplier, int dead_zone, const mouse2axis_config* m2a_config) {
 	int axis = axis_props->axis;
@@ -77,7 +81,19 @@ double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_ax
 	mouse2axisPoint p;
 	x *= multiplier_x;
 	y *= multiplier_y;
-	p = mouse2axis_translation(x, y, dead_zone, m2a_config);
+	
+     
+	if(MOUSE2AXIS_DEBUG==true){
+		clock_t start, end;
+		double cpu_time_used;
+		start = clock();
+		p = mouse2axis_translation(x, y, dead_zone, m2a_config);
+		end = clock();
+		cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC * 1000;
+		printf("mouse2axis_translation time: %dms\n",(int) cpu_time_used);
+	}else{
+		p = mouse2axis_translation(x, y, dead_zone, m2a_config);
+	}
 	switch (which) {
 	case AXIS_X:
 		controller->axis[axis] = p.x;
