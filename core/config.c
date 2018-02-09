@@ -17,6 +17,8 @@
 #include "macros.h"
 #include <adapter.h>
 
+#include <adv-mouse2axis.h>
+
 #define DEFAULT_RADIUS 512
 #define DEFAULT_VELOCITY 1
 
@@ -500,7 +502,7 @@ static void update_stick(int c_id, int axis)
       axis = axis - 1;
     }
   }
-  
+
   s_intensity* intensity = &axis_intensity[c_id][cfg_controllers[c_id].current->index][axis];
   double value = intensity->value;
 
@@ -548,7 +550,7 @@ static void update_stick(int c_id, int axis)
 static int update_intensity(int device_type, int device_id, int button, int c_id, int axis)
 {
   int ret = 0;
-  
+
   s_intensity* intensity = &axis_intensity[c_id][cfg_controllers[c_id].current->index][axis];
 
   if (intensity->up.device.type == device_type && device_id == intensity->up.device.id && button == intensity->up.button)
@@ -928,7 +930,9 @@ static int postpone_event(unsigned int device, GE_Event* event)
   return ret;
 }
 
-static double mouse2axis(int device, s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double exp, double multiplier, int dead_zone, e_shape shape, e_mouse_mode mode)
+
+
+static double mouse2axis_orig(int device, s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double exp, double multiplier, int dead_zone, e_shape shape, e_mouse_mode mode)
 {
   double z = 0;
   double dz = dead_zone;
@@ -1002,7 +1006,7 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
     val *= multiplier;
     z = (val/fabs(val)) * fabs(val) * r / fr;
   }
-  
+
   if(mode == E_MOUSE_MODE_AIMING)
   {
     if(z > 0)
@@ -1059,6 +1063,21 @@ static double mouse2axis(int device, s_adapter* controller, int which, double x,
 
   return motion_residue;
 }
+
+static double mouse2axis(int device, s_adapter* controller, int which, double x, double y,
+		s_axis_props* axis_props, double exp, double multiplier, int dead_zone, e_shape shape,
+		e_mouse_mode mode) {
+	if (exp >= 1.095) {
+		mouse2axis_config m2a_config;
+		m2a_config.motion_residue_extrapolation = true;
+		m2a_config.preserve_angle = true;
+		m2a_config.zero_axis_is_positive = true;
+		return adv_mouse2axis(controller, which, x, y, axis_props, multiplier, dead_zone, &m2a_config);
+	}
+	return mouse2axis_orig(device, controller, which, x, y, axis_props, exp, multiplier, dead_zone, shape,
+			mode);
+}
+
 
 void update_dbutton_axis(s_mapper* mapper, int c_id, int axis)
 {
