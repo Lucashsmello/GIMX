@@ -28,9 +28,10 @@ static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, in
 	double x_mouse_abs = fabs(x_mouse);
 	double y_mouse_abs = fabs(y_mouse);
 	double cur_distance, lowest_distance = (x_mouse_abs + y_mouse_abs) * (x_mouse_abs + y_mouse_abs) + 1;
+	int i,j;
 
-	for (int i = 0; i <= 127; i++) {
-		for (int j = 0; j <= 127; j++) {
+	for (i = 0; i <= 127; i++) {
+		for (j = 0; j <= 127; j++) {
 			radius_ratio = 1 - dead_zone / sqrt(i * i + j * j);
 			if (radius_ratio <= 0) {
 				continue;
