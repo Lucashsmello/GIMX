@@ -934,134 +934,129 @@ static int postpone_event(unsigned int device, GE_Event* event)
 
 static double mouse2axis_orig(int device, s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double exp, double multiplier, int dead_zone, e_shape shape, e_mouse_mode mode)
 {
-  double z = 0;
-  double dz = dead_zone;
-  double motion_residue = 0;
-  double ztrunk = 0;
-  double val = 0;
-  int min_axis, max_axis;
-  int new_state;
-  int axis = axis_props->axis;
-  double fr;
-  double r;
+	  double z = 0;
+	  double dz = dead_zone;
+	  double motion_residue = 0;
+	  double ztrunk = 0;
+	  double val = 0;
+	  int min_axis, max_axis;
+	  int new_state;
+	  int axis = axis_props->axis;
 
-  max_axis = controller_get_max_signed(controller->ctype, axis);
-  if(axis_props->props == AXIS_PROP_CENTERED)
-  {
-    min_axis = -max_axis;
-  }
-  else
-  {
-    min_axis = 0;
-  }
+	  max_axis = controller_get_max_signed(controller->ctype, axis);
+	  if(axis_props->props == AXIS_PROP_CENTERED)
+	  {
+	    min_axis = -max_axis;
+	  }
+	  else
+	  {
+	    min_axis = 0;
+	  }
 
-  multiplier *= controller_get_axis_scale(controller->ctype, axis);
-  dz *= controller_get_axis_scale(controller->ctype, axis);
+	  multiplier *= controller_get_axis_scale(controller->ctype, axis);
+	  dz *= controller_get_axis_scale(controller->ctype, axis);
 
-  if(which == AXIS_X)
-  {
-    val = x * gimx_params.frequency_scale;
-    if(x && y && shape == E_SHAPE_CIRCLE)
-    {
-      dz = dz*cos(atan(fabs(y/x)));
-    }
-    if(device == current_mouse && (current_cal == DZX || current_cal == DZS))
-    {
-      if(val > 0)
-      {
-        controller->axis[axis] = dz;
-      }
-      else
-      {
-        controller->axis[axis] = -dz;
-      }
-      return 0;
-    }
-  }
-  else if(which == AXIS_Y)
-  {
-    val = y * gimx_params.frequency_scale;
-    if(x && y && shape == E_SHAPE_CIRCLE)
-    {
-      dz = dz*sin(atan(fabs(y/x)));
-    }
-    if(device == current_mouse && (current_cal == DZY || current_cal == DZS))
-    {
-      if(val > 0)
-      {
-        controller->axis[axis] = dz;
-      }
-      else
-      {
-        controller->axis[axis] = -dz;
-      }
-      return 0;
-    }
-  }
+	  if(which == AXIS_X)
+	  {
+	    val = x * gimx_params.frequency_scale;
+	    if(x && y && shape == E_SHAPE_CIRCLE)
+	    {
+	      dz = dz*cos(atan(fabs(y/x)));
+	    }
+	    if(device == current_mouse && (current_cal == DZX || current_cal == DZS))
+	    {
+	      if(val > 0)
+	      {
+	        controller->axis[axis] = dz;
+	      }
+	      else
+	      {
+	        controller->axis[axis] = -dz;
+	      }
+	      return 0;
+	    }
+	  }
+	  else if(which == AXIS_Y)
+	  {
+	    val = y * gimx_params.frequency_scale;
+	    if(x && y && shape == E_SHAPE_CIRCLE)
+	    {
+	      dz = dz*sin(atan(fabs(y/x)));
+	    }
+	    if(device == current_mouse && (current_cal == DZY || current_cal == DZS))
+	    {
+	      if(val > 0)
+	      {
+	        controller->axis[axis] = dz;
+	      }
+	      else
+	      {
+	        controller->axis[axis] = -dz;
+	      }
+	      return 0;
+	    }
+	  }
 
-  if(val != 0)
-  {
-	fr = sqrt(x*x + y*y) * gimx_params.frequency_scale; //magnitude or norm of the vector (x,y).
-	r = pow(fr,exp);
-    val *= multiplier;
-    z = (val/fabs(val)) * fabs(val) * r / fr;
-  }
+	  if(val != 0)
+	  {
+	    z = multiplier * (val/fabs(val)) * pow(fabs(val), exp);
+	  }
 
-  if(mode == E_MOUSE_MODE_AIMING)
-  {
-    if(z > 0)
-    {
-      controller->axis[axis] = dz + z;
-      /*
-       * max axis position => no residue
-       */
-      if(controller->axis[axis] < max_axis)
-      {
-        ztrunk = controller->axis[axis] - dz;
-      }
-    }
-    else if(z < 0)
-    {
-      controller->axis[axis] = z - dz;
-      /*
-       * max axis position => no residue
-       */
-      if(controller->axis[axis] > min_axis)
-      {
-        ztrunk = controller->axis[axis] + dz;
-      }
-    }
-    else controller->axis[axis] = 0;
-  }
-  else //E_MOUSE_MODE_DRIVING
-  {
-    new_state = controller->axis[axis] + z;
-    if(new_state > 0 && new_state < dz)
-    {
-      new_state -= (2*dz);
-    }
-    if(new_state < 0 && new_state > -dz)
-    {
-      new_state += (2*dz);
-    }
-    controller->axis[axis] = clamp(min_axis, new_state, max_axis);
-  }
+	  if(mode == E_MOUSE_MODE_AIMING)
+	  {
+	    if(z > 0)
+	    {
+	      controller->axis[axis] = dz + z;
+	      /*
+	       * max axis position => no residue
+	       */
+	      if(controller->axis[axis] < max_axis)
+	      {
+	        ztrunk = controller->axis[axis] - dz;
+	      }
+	    }
+	    else if(z < 0)
+	    {
+	      controller->axis[axis] = z - dz;
+	      /*
+	       * max axis position => no residue
+	       */
+	      if(controller->axis[axis] > min_axis)
+	      {
+	        ztrunk = controller->axis[axis] + dz;
+	      }
+	    }
+	    else controller->axis[axis] = 0;
+	  }
+	  else //E_MOUSE_MODE_DRIVING
+	  {
+	    new_state = controller->axis[axis] + z;
+	    if(new_state > 0 && new_state < dz)
+	    {
+	      new_state -= (2*dz);
+	    }
+	    if(new_state < 0 && new_state > -dz)
+	    {
+	      new_state += (2*dz);
+	    }
+	    controller->axis[axis] = clamp(min_axis, new_state, max_axis);
+	  }
 
-  if(val != 0 && ztrunk != 0)
-  {
-    //printf("ztrunk: %.4f\n", ztrunk);
-    /*
-     * Compute the motion that wasn't applied due to the double to integer conversion.
-     */
-    motion_residue = (val/fabs(val)) * ( fabs(val) - fabs(ztrunk)*fr/r ) / multiplier;
-    if(fabs(motion_residue) < 0.0039)//allow 256 subpositions
-    {
-      motion_residue = 0;
-    }
-    //printf("motion_residue: %.4f\n", motion_residue);
-  }
+	  if(val != 0 && ztrunk != 0)
+	  {
+	    //printf("ztrunk: %.4f\n", ztrunk);
+	    /*
+	     * Compute the motion that wasn't applied due to the double to integer conversion.
+	     */
+	    motion_residue = (val/fabs(val)) * ( fabs(val) - pow(fabs(ztrunk)/multiplier, 1/exp) );
+	    if(fabs(motion_residue) < 0.0039)//allow 256 subpositions
+	    {
+	      motion_residue = 0;
+	    }
+	    //printf("motion_residue: %.4f\n", motion_residue);
+	  }
 
-  return motion_residue;
+	  return motion_residue;
 }
 
 extern boolean MOUSE2AXIS_DEBUG;
