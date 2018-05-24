@@ -155,8 +155,8 @@ static double clampMotionResidue(double motion_residue, int x) {
 	return motion_residue;
 }
 
-double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double multiplier,
-		double exp, int dead_zone, const mouse2axis_config* m2a_config) {
+double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double exp,
+		double multiplier, int dead_zone, const mouse2axis_config* m2a_config) {
 	int axis = axis_props->axis;
 	if ((which == AXIS_X && x == 0) || (which == AXIS_Y && y == 0)) {
 		controller->axis[axis] = 0;
