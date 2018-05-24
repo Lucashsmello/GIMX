@@ -166,6 +166,9 @@ double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_ax
 	double multiplier_x = multiplier * controller_get_axis_scale(controller->ctype, AXIS_X);
 	double multiplier_y = multiplier * controller_get_axis_scale(controller->ctype, AXIS_Y);
 
+	multiplier_x = pow(multiplier_x, exp);
+	multiplier_y = pow(multiplier_y, exp);
+
 	mouse2axisPoint p;
 	x *= multiplier_x;
 	y *= multiplier_y;
