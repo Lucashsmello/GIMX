@@ -11,4 +11,9 @@
 void set_done();
 void mainloop();
 
+/**
+ * In microseconds.
+ */
+unsigned int getPoolTime();
+
 #endif /* MAINLOOP_H_ */

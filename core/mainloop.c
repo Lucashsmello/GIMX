@@ -15,6 +15,24 @@
 #include <connectors/usb_con.h>
 #include <report2event/report2event.h>
 
+#include <time.h>
+
+static struct timespec TTT;
+
+static int getUSEC(struct timespec T1, struct timespec T2) {
+	return 1000 * 1000 * (T2.tv_sec - T1.tv_sec) + (T2.tv_nsec - T1.tv_nsec) / 1000;
+}
+
+/**
+ * In microseconds.
+ */
+unsigned int getPoolTime() {
+	struct timespec T1;
+	clock_gettime(CLOCK_REALTIME, &T1);
+	return getUSEC(TTT,T1);
+}
+
+
 static volatile int done = 0;
 
 void set_done()
@@ -75,6 +93,7 @@ void mainloop()
     {
       done = 1;
     }
+    clock_gettime(CLOCK_REALTIME, &TTT);
 
     cfg_process_rumble();
     

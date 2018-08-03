@@ -27,6 +27,7 @@
 #include <haptic/ff_lg.h>
 #include <haptic/ff_conv.h>
 #include <ghid.h>
+#include "mainloop.h"
 
 #define BAUDRATE 500000 //bps
 #define SERIAL_TIMEOUT 1000 //millisecond
@@ -161,6 +162,7 @@ static void adapter_dump_state(int adapter)
  */
 static int network_read_callback(int adapter)
 {
+  unsigned int pt;
   static unsigned char buf[256+2];
   int nread = 0;
   struct sockaddr_in sa;
@@ -198,6 +200,19 @@ static int network_read_callback(int adapter)
     memcpy(adapters[adapter].axis, buf+2, sizeof(adapters->axis));
     adapters[adapter].send_command = 1;
     break;
+  case BYTE_REQPOOLTIME:
+      pt=getPoolTime();
+	  // send the answer
+	  unsigned char answer[3];
+	  answer[0]=BYTE_TYPE;
+	  answer[1]=pt & 0xff;
+	  answer[2]=(pt >> 8) & 0xff;
+	  if (udp_sendto(adapters[adapter].src_fd, answer, sizeof(answer), (struct sockaddr*) &sa, salen) < 0)
+	  {
+		fprintf(stderr, "adapter_network_read: can't send pool time\n");
+		return 0;
+	  }
+	  break;
   }
   // require a report to be sent immediately, except for a Sixaxis controller working over bluetooth
   if(adapters[adapter].ctype == C_TYPE_SIXAXIS && adapters[adapter].atype == E_ADAPTER_TYPE_BLUETOOTH)
