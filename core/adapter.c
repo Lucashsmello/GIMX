@@ -153,6 +153,16 @@ static void adapter_dump_state(int adapter)
   printf("\n");
 }
 
+static int sendPoolTime(int src_fd,struct sockaddr_in* sa,socklen_t salen) {
+	unsigned int pt = getPoolTime();
+	// send the answer
+	unsigned char answer[3];
+	answer[0] = BYTE_TYPE;
+	answer[1] = pt & 0xff;
+	answer[2] = (pt >> 8) & 0xff;
+	return udp_sendto(src_fd, answer, sizeof(answer), (struct sockaddr*) sa, salen);
+}
+
 /*
  * Read a packet from a remote GIMX client.
  * The packet can be:
@@ -162,7 +172,6 @@ static void adapter_dump_state(int adapter)
  */
 static int network_read_callback(int adapter)
 {
-  unsigned int pt;
   static unsigned char buf[256+2];
   int nread = 0;
   struct sockaddr_in sa;
@@ -172,11 +181,11 @@ static int network_read_callback(int adapter)
   {
     return 0;
   }
-  if(nread < 2)
-  {
-    fprintf(stderr, "invalid packet size: %d\n", nread);
-    return 0;
-  }
+//  if(nread < 2)
+//  {
+//    fprintf(stderr, "invalid packet size: %d\n", nread);
+//    return 0;
+//  }
   switch(buf[0])
   {
   case BYTE_TYPE:
@@ -200,18 +209,24 @@ static int network_read_callback(int adapter)
     memcpy(adapters[adapter].axis, buf+2, sizeof(adapters->axis));
     adapters[adapter].send_command = 1;
     break;
+  case BYTE_IN_REPORT_REQPOOLTIME:
+		if (buf[1] != sizeof(adapters->axis)) {
+			fprintf(stderr, "adapter_network_read: wrong packet size\n");
+			return 0;
+		}
+		// store the report (no answer)
+		memcpy(adapters[adapter].axis, buf + 2, sizeof(adapters->axis));
+		adapters[adapter].send_command = 1;
+		if (sendPoolTime(adapters[adapter].src_fd, &sa, salen) < 0) {
+			fprintf(stderr, "adapter_network_read: can't send pool time\n");
+			return 0;
+		}
+	  break;
   case BYTE_REQPOOLTIME:
-      pt=getPoolTime();
-	  // send the answer
-	  unsigned char answer[3];
-	  answer[0]=BYTE_TYPE;
-	  answer[1]=pt & 0xff;
-	  answer[2]=(pt >> 8) & 0xff;
-	  if (udp_sendto(adapters[adapter].src_fd, answer, sizeof(answer), (struct sockaddr*) &sa, salen) < 0)
-	  {
-		fprintf(stderr, "adapter_network_read: can't send pool time\n");
-		return 0;
-	  }
+		if (sendPoolTime(adapters[adapter].src_fd, &sa, salen) < 0) {
+			fprintf(stderr, "adapter_network_read: can't send pool time\n");
+			return 0;
+		}
 	  break;
   }
   // require a report to be sent immediately, except for a Sixaxis controller working over bluetooth
