@@ -13,8 +13,6 @@ else
 OUT=ds4tool.exe sixaddr.exe
 endif
 
-CPPFLAGS += $(GIMXPOLL_CPPFLAGS) $(GIMXUSB_CPPFLAGS)
-
 LDLIBS += $(GIMXPOLL_LDLIBS) $(GIMXUSB_LDLIBS)
 
 LDFLAGS += $(GIMXPOLL_LDFLAGS) $(GIMXUSB_LDFLAGS)
@@ -30,10 +28,10 @@ ds4tool: ds4tool.o
 
 ifneq ($(OS),Windows_NT)
 bdaddr: linux/bdaddr.o linux/oui.o
-	$(CC) $^ -o $@ -lbluetooth
+	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -lbluetooth -o $@
 
 hcirevision: linux/hcirevision.o
-	$(CC) $^ -o $@ -lbluetooth
+	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -lbluetooth -o $@
 endif
 
 ifneq ($(OS),Windows_NT)

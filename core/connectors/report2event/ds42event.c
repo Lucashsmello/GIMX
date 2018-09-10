@@ -1,15 +1,15 @@
 /*
- Copyright (c) 2016 Mathieu Laurendeau <mat.lau@laposte.net>
+ Copyright (c) 2017 Mathieu Laurendeau <mat.lau@laposte.net>
  License: GPLv3
  */
 
 #include <report2event/ds42event.h>
-#include <adapter.h>
-#include <controller2.h>
+#include <controller.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <gimxcontroller/include/controller.h>
 
 #define STICK_THRESHOLD 8
 
@@ -241,7 +241,7 @@ void ds42event(int adapter_id, s_report* current, s_report* previous,
     }
 
     // forward motion sensing in bluetooth mode only
-    if(adapter->bdaddr_dst)
+    if(adapter->bt.bdaddr_dst)
     {
       /*
        * Motion sensing

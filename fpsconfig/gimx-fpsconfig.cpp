@@ -6,7 +6,7 @@
 #include "wx_pch.h"
 #include "gimx-fpsconfig.h"
 #include <wx/msgdlg.h>
-#include <ConfigurationFile.h>
+#include <gimxconfigeditor/include/ConfigurationFile.h>
 
 #ifndef WIN32
 #include <pwd.h>
@@ -28,7 +28,7 @@
 #include <wx/filename.h>
 #include <wx/dir.h>
 
-#include "../shared/updater/updater.h"
+#include <gimxupdater/Updater.h>
 #include "../directories.h"
 
 #include <wx/tooltip.h>
@@ -40,6 +40,9 @@
 #include <wx/busyinfo.h>
 
 #define _CN(STRING) locale->GetString(wxString(STRING.c_str(), wxConvUTF8))
+
+#define TO_STRING(WXSTRING) string(WXSTRING.mb_str(wxConvUTF8))
+#define TO_WXSTRING(STRING) wxString(STRING.c_str(), wxConvUTF8)
 
 using namespace std;
 
@@ -208,6 +211,13 @@ static bool ToDouble(const wxString & from, double * to, const wxString & decima
     wxString tmp = from;
     tmp.Replace(wxT("."), decimalPoint);
     return tmp.ToDouble(to);
+}
+
+static wxString FormatDouble(double value, const wxString & decimalPoint)
+{
+    wxString str = wxString::Format(wxT("%.02f"), value);
+    str.Replace(decimalPoint, wxT("."));
+    return str;
 }
 
 fpsconfigFrame::fpsconfigFrame(wxString file,wxWindow* parent,wxWindowID id __attribute__((unused)))
@@ -405,7 +415,6 @@ fpsconfigFrame::fpsconfigFrame(wxString file,wxWindow* parent,wxWindowID id __at
     StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
     StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
     SetStatusBar(StatusBar1);
-    FileDialog1 = new wxFileDialog(this, _("Select file"), wxEmptyString, wxEmptyString, wxFileSelectorDefaultWildcardStr, wxFD_DEFAULT_STYLE, wxDefaultPosition, wxDefaultSize, _T("wxFileDialog"));
 
     Connect(ID_SPINCTRL8,wxEVT_COMMAND_SPINCTRL_UPDATED,(wxObjectEventFunction)&fpsconfigFrame::OnSpinCtrlChange);
     Connect(ID_SPINCTRL7,wxEVT_COMMAND_SPINCTRL_UPDATED,(wxObjectEventFunction)&fpsconfigFrame::OnSpinCtrlChange);
@@ -464,6 +473,7 @@ fpsconfigFrame::fpsconfigFrame(wxString file,wxWindow* parent,wxWindowID id __at
     Connect(ID_MENUITEM9,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&fpsconfigFrame::OnMenuItemWindowEventsSelected);
     Connect(idMenuAbout,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&fpsconfigFrame::OnAbout);
     //*)
+    Connect(wxEVT_CLOSE_WINDOW, wxCloseEventHandler(fpsconfigFrame::OnClose), NULL, this);
 
     wxMemoryInputStream istream(background_png, sizeof background_png);
     wxImage background_img(istream, wxBITMAP_TYPE_PNG);
@@ -530,7 +540,7 @@ fpsconfigFrame::fpsconfigFrame(wxString file,wxWindow* parent,wxWindowID id __at
       }
     }
 
-    FileDialog1->SetDirectory(default_directory);
+    configFile.SetDirectory(TO_STRING(default_directory));
 
     current_dpi = 0;
 
@@ -539,26 +549,15 @@ fpsconfigFrame::fpsconfigFrame(wxString file,wxWindow* parent,wxWindowID id __at
       values[i] = 1;
     }
 
-    evcatch = event_catcher::getInstance();
+    evcatch = EventCatcher::getInstance();
 
-  	/* Open the file given as argument. */
-    if(!file.IsEmpty())
-    {
-      wxString wxfile = default_directory + file;
+    save_current(emptyConfigFile);
 
-      if(::wxFileExists(wxfile))
-      {
-        configFile.ReadConfigFile(string(wxfile.mb_str(wxConvUTF8)));
-        LoadConfig();
-        FileDialog1->SetFilename(file);
-      }
-      else
-      {
-        wxMessageBox( _("Cannot open config file: ") + file, _("Error"), wxICON_ERROR);
-      }
+    if (!file.IsEmpty()) {
+        openConfiguration(default_directory, file);
     }
 
-	  wxToolTip::SetDelay(0);
+	wxToolTip::SetDelay(0);
 
     readLabels();
 
@@ -571,6 +570,34 @@ fpsconfigFrame::~fpsconfigFrame()
     //(*Destroy(fpsconfigFrame)
     //*)
     Panel1->RemoveEventHandler(ToolBarBackground);
+    delete ToolBarBackground;
+}
+
+void fpsconfigFrame::checkSave()
+{
+    save_current(configFile);
+
+    if (!configFile.GetFile().empty()) {
+        if (!(openedConfigFile == configFile)) {
+            int answer = wxMessageBox(_("Do you want to save your configuration?"), TO_WXSTRING(configFile.GetFile()), wxYES_NO);
+            if (answer == wxYES) {
+                wxCommandEvent e;
+                OnMenuSave(e);
+            }
+        }
+    } else if (!(configFile == emptyConfigFile)) {
+        int answer = wxMessageBox(_("Do you want to save your configuration?"), wxEmptyString, wxYES_NO);
+        if (answer == wxYES) {
+            wxCommandEvent e;
+            OnMenuSaveAs(e);
+        }
+    }
+}
+
+void fpsconfigFrame::OnClose(wxCloseEvent& event)
+{
+    checkSave();
+    event.Skip();
 }
 
 void fpsconfigFrame::OnQuit(wxCommandEvent& event __attribute__((unused)))
@@ -590,12 +617,28 @@ void fpsconfigFrame::OnAbout(wxCommandEvent& event __attribute__((unused)))
   wxAboutBox(info);
 }
 
-void updateTextCtrlValue(wxTextCtrl* text, wxSpinEvent& event, double* value)
+void fpsconfigFrame::updateTextCtrlValue(wxTextCtrl* text, int step, double* value)
 {
     wxString str;
-    *value = (double)(event.GetInt()) / 100;
-    str = wxString::Format(wxT("%.02f"), *value);
+    *value = (double)(step) / 100;
+    str = FormatDouble(*value, decimalPoint);
     text->SetValue(str);
+}
+
+void fpsconfigFrame::updateSpinCtrl(wxSpinCtrl * spin, wxTextCtrl* text, int step, int min, int max, double * value)
+{
+    if (step < min * 100)
+    {
+        spin->SetValue(min * 100);
+    }
+    else if (step > max * 100)
+    {
+        spin->SetValue(max * 100);
+    }
+    else
+    {
+        updateTextCtrlValue(text, step, value);
+    }
 }
 
 void fpsconfigFrame::OnSpinCtrlChange(wxSpinEvent& event)
@@ -604,35 +647,35 @@ void fpsconfigFrame::OnSpinCtrlChange(wxSpinEvent& event)
 
     if(spin == SpinCtrlSensitivityHipFire)
     {
-        updateTextCtrlValue(TextCtrlSensitivityHipFire, event, values);
+        updateSpinCtrl(spin, TextCtrlSensitivityHipFire, event.GetInt(), -100, 100, values + 0);
     }
     else if(spin == SpinCtrlSensitivityADS)
     {
-        updateTextCtrlValue(TextCtrlSensitivityADS, event, values+1);
+        updateSpinCtrl(spin, TextCtrlSensitivityADS, event.GetInt(), -100, 100, values + 1);
     }
     else if(spin == SpinCtrlAccelerationHipFire)
     {
-        updateTextCtrlValue(TextCtrlAccelerationHipFire, event, values+2);
+        updateSpinCtrl(spin, TextCtrlAccelerationHipFire, event.GetInt(), 0, 2, values + 2);
     }
     else if(spin == SpinCtrlAccelerationADS)
     {
-        updateTextCtrlValue(TextCtrlAccelerationADS, event, values+3);
+        updateSpinCtrl(spin, TextCtrlAccelerationADS, event.GetInt(), 0, 2, values + 3);
     }
     else if(spin == SpinCtrlXyRatioHipFire)
     {
-        updateTextCtrlValue(TextCtrlXyRatioHipFire, event, values+4);
+        updateTextCtrlValue(TextCtrlXyRatioHipFire, event.GetInt(), values+4);
     }
     else if(spin == SpinCtrlXyRatioADS)
     {
-        updateTextCtrlValue(TextCtrlXyRatioADS, event, values+5);
+        updateTextCtrlValue(TextCtrlXyRatioADS, event.GetInt(), values+5);
     }
     else if(spin == SpinCtrlFilterHipFire)
     {
-        updateTextCtrlValue(TextCtrlFilterHipFire, event, values+6);
+        updateSpinCtrl(spin, TextCtrlFilterHipFire, event.GetInt(), 0, 1, values + 6);
     }
     else if(spin == SpinCtrlFilterADS)
     {
-        updateTextCtrlValue(TextCtrlFilterADS, event, values+7);
+        updateSpinCtrl(spin, TextCtrlFilterADS, event.GetInt(), 0, 1, values + 7);
     }
 }
 
@@ -996,7 +1039,15 @@ void fpsconfigFrame::OnButtonClick(wxCommandEvent& event)
 
 void fpsconfigFrame::OnMenuNew(wxCommandEvent& event __attribute__((unused)))
 {
-    FileDialog1->SetFilename(wxEmptyString);
+    checkSave();
+
+    wxTopLevelWindow::SetTitle(wxT("Gimx-fpsconfig"));
+    configFile = ConfigurationFile();
+    configFile.SetDirectory(TO_STRING(default_directory));
+    configFile.SetFile("");
+    openedConfigFile = ConfigurationFile();
+    openedConfigFile.SetDirectory(TO_STRING(default_directory));
+    openedConfigFile.SetFile("");
 
     defaultMouseName = "";
     defaultMouseId = "0";
@@ -1049,37 +1100,42 @@ void fpsconfigFrame::OnMenuNew(wxCommandEvent& event __attribute__((unused)))
     TextCtrlFilterADS->SetValue(wxT("0.00"));
 
     SpinCtrlDPI->Enable(true);
+    SpinCtrlDPI->SetValue(0);
+    current_dpi = 0;
     SpinCtrlDPI->SetToolTip(_("Enter your mouse DPI value."));
-
-    configFile = ConfigurationFile();
 
     MenuItemSave->Enable(false);
 }
 
-void fpsconfigFrame::OnMenuSaveAs(wxCommandEvent& event)
+void fpsconfigFrame::OnMenuSaveAs(wxCommandEvent& event __attribute__((unused)))
 {
-    wxFileDialog saveFileDialog(this, _("Save config file"), wxT(""), wxT(""), _("XML files (*.xml)|*.xml"), wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
+    wxFileDialog saveFileDialog(this, _("Save config file"), TO_WXSTRING(configFile.GetDirectory()),
+            TO_WXSTRING(configFile.GetFile()), _("XML files (*.xml)|*.xml"), wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
 
-    saveFileDialog.SetDirectory(FileDialog1->GetDirectory());
-    saveFileDialog.SetFilename(FileDialog1->GetFilename());
+    if ( saveFileDialog.ShowModal() == wxID_CANCEL) {
+        return;
+    }
 
-    if ( saveFileDialog.ShowModal() == wxID_CANCEL ) return;
-
-    wxString FileName = saveFileDialog.GetPath();
-
-    if ( FileName.IsEmpty() ) return;
-
-    configFile.SetFilePath(string(FileName.mb_str(wxConvUTF8)));
-
-    OnMenuSave(event);
-
-    FileDialog1->SetDirectory(saveFileDialog.GetDirectory());
-    FileDialog1->SetFilename(saveFileDialog.GetFilename());
+    save(saveFileDialog.GetDirectory(), saveFileDialog.GetFilename());
 
     MenuItemSave->Enable(true);
 }
 
-void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
+bool fpsconfigFrame::save(const wxString& directory, const wxString& file)
+{
+    save_current(configFile);
+    if (configFile.WriteConfigFile(TO_STRING(directory), TO_STRING(file)) < 0) {
+        wxMessageBox(_("Can't save_current ") + file, _("Error"), wxICON_ERROR);
+        return false;
+    } else {
+        openedConfigFile = configFile;
+        SetTitle(file + wxT(" - Gimx-fpsconfig"));
+        Refresh();
+    }
+    return true;
+}
+
+void fpsconfigFrame::save_current(ConfigurationFile& config)
 {
     std::list<ControlMapper>* ButtonMappers;
     std::list<ControlMapper>* AxisMappers;
@@ -1102,12 +1158,12 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
     /*
      * Save DPI value.
      */
-    configFile.GetController(0)->SetMouseDPI(current_dpi);
+    config.GetController(0)->SetMouseDPI(current_dpi);
     /*
      * Save Hip Fire config.
      */
     //Save ButtonMappers
-    ButtonMappers = configFile.GetController(0)->GetConfiguration(0)->GetButtonMapperList();
+    ButtonMappers = config.GetController(0)->GetProfile(0)->GetButtonMapperList();
     for(int i=bi_select; i<BI_MAX; i++)
     {
         if(!buttons[i].GetDevice()->GetType().empty())
@@ -1128,7 +1184,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
         }
     }
     //Save AxisMappers
-    AxisMappers = configFile.GetController(0)->GetConfiguration(0)->GetAxisMapperList();
+    AxisMappers = config.GetController(0)->GetProfile(0)->GetAxisMapperList();
     for(int i=ai_ls_up; i<AI_MAX; i++)
     {
         if(!axes[i].GetDevice()->GetType().empty())
@@ -1158,7 +1214,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
             it->GetEvent()->SetExponent(string(TextCtrlAccelerationHipFire->GetValue().mb_str(wxConvUTF8)));
             it->GetEvent()->SetShape(reverseTranslate(string(ChoiceDeadZoneShapeHipFire->GetStringSelection().mb_str(wxConvUTF8))));
 
-            std::list<MouseOptions>* mouseOptions = configFile.GetController(0)->GetConfiguration(0)->GetMouseOptionsList();
+            std::list<MouseOptions>* mouseOptions = config.GetController(0)->GetProfile(0)->GetMouseOptionsList();
             std::list<MouseOptions>::iterator it2;
             for(it2 = mouseOptions->begin(); it2!=mouseOptions->end(); ++it2)
             {
@@ -1186,7 +1242,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
             string(TextCtrlAccelerationHipFire->GetValue().mb_str(wxConvUTF8)),
             reverseTranslate(string(ChoiceDeadZoneShapeHipFire->GetStringSelection().mb_str(wxConvUTF8))), "Aiming - x axis"));
 
-        std::list<MouseOptions>* mouseOptions = configFile.GetController(0)->GetConfiguration(0)->GetMouseOptionsList();
+        std::list<MouseOptions>* mouseOptions = config.GetController(0)->GetProfile(0)->GetMouseOptionsList();
         std::list<MouseOptions>::iterator it2;
         for(it2 = mouseOptions->begin(); it2!=mouseOptions->end(); ++it2)
         {
@@ -1214,7 +1270,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
     {
         my = mx;
     }
-    wsmy = wxString::Format(wxT("%.02f"), my);
+    wsmy = FormatDouble(my, decimalPoint);
     found = false;
     for(std::list<ControlMapper>::iterator it = AxisMappers->begin(); it!=AxisMappers->end() && !found; ++it)
     {
@@ -1237,19 +1293,19 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
      * Save ADS config.
      */
     //Save Trigger
-    if(configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetDevice()->GetType() != "mouse"
-        || configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetEvent()->GetId() != "BUTTON_RIGHT"
-        || configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetSwitchBack() != "yes")
+    if(config.GetController(0)->GetProfile(1)->GetTrigger()->GetDevice()->GetType() != "mouse"
+        || config.GetController(0)->GetProfile(1)->GetTrigger()->GetEvent()->GetId() != "BUTTON_RIGHT"
+        || config.GetController(0)->GetProfile(1)->GetTrigger()->GetSwitchBack() != "yes")
     {
-        configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetDevice()->SetType("mouse");
-        configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetDevice()->SetName(defaultMouseName);
-        configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetDevice()->SetId(defaultMouseId);
-        configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->GetEvent()->SetId("BUTTON_RIGHT");
-        configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->SetSwitchBack("yes");
-        configFile.GetController(0)->GetConfiguration(1)->GetTrigger()->SetDelay(0);
+        config.GetController(0)->GetProfile(1)->GetTrigger()->GetDevice()->SetType("mouse");
+        config.GetController(0)->GetProfile(1)->GetTrigger()->GetDevice()->SetName(defaultMouseName);
+        config.GetController(0)->GetProfile(1)->GetTrigger()->GetDevice()->SetId(defaultMouseId);
+        config.GetController(0)->GetProfile(1)->GetTrigger()->GetEvent()->SetId("BUTTON_RIGHT");
+        config.GetController(0)->GetProfile(1)->GetTrigger()->SetSwitchBack("yes");
+        config.GetController(0)->GetProfile(1)->GetTrigger()->SetDelay(0);
     }
     //Save ButtonMappers
-    ButtonMappers = configFile.GetController(0)->GetConfiguration(1)->GetButtonMapperList();
+    ButtonMappers = config.GetController(0)->GetProfile(1)->GetButtonMapperList();
     for(int i=bi_select; i<BI_MAX; i++)
     {
         if(!buttons[i].GetDevice()->GetType().empty())
@@ -1270,7 +1326,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
         }
     }
     //Save AxisMappers
-    AxisMappers = configFile.GetController(0)->GetConfiguration(1)->GetAxisMapperList();
+    AxisMappers = config.GetController(0)->GetProfile(1)->GetAxisMapperList();
     for(int i=ai_ls_up; i<AI_MAX; i++)
     {
         if(!axes[i].GetDevice()->GetType().empty())
@@ -1300,7 +1356,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
             it->GetEvent()->SetExponent(string(TextCtrlAccelerationADS->GetValue().mb_str(wxConvUTF8)));
             it->GetEvent()->SetShape(reverseTranslate(string(ChoiceDeadZoneShapeADS->GetStringSelection().mb_str(wxConvUTF8))));
 
-            std::list<MouseOptions>* mouseOptions = configFile.GetController(0)->GetConfiguration(1)->GetMouseOptionsList();
+            std::list<MouseOptions>* mouseOptions = config.GetController(0)->GetProfile(1)->GetMouseOptionsList();
             std::list<MouseOptions>::iterator it2;
             for(it2 = mouseOptions->begin(); it2!=mouseOptions->end(); ++it2)
             {
@@ -1327,7 +1383,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
           sDzADS, string(TextCtrlSensitivityADS->GetValue().mb_str(wxConvUTF8)), string(TextCtrlAccelerationADS->GetValue().mb_str(wxConvUTF8)),
           reverseTranslate(string(ChoiceDeadZoneShapeADS->GetStringSelection().mb_str(wxConvUTF8))), "Aiming - x axis"));
 
-      std::list<MouseOptions>* mouseOptions = configFile.GetController(0)->GetConfiguration(1)->GetMouseOptionsList();
+      std::list<MouseOptions>* mouseOptions = config.GetController(0)->GetProfile(1)->GetMouseOptionsList();
       std::list<MouseOptions>::iterator it2;
       for(it2 = mouseOptions->begin(); it2!=mouseOptions->end(); ++it2)
       {
@@ -1355,7 +1411,7 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
     {
         my = mx;
     }
-    wsmy = wxString::Format(wxT("%.02f"), my);
+    wsmy = FormatDouble(my, decimalPoint);
     found = false;
     for(std::list<ControlMapper>::iterator it = AxisMappers->begin(); it!=AxisMappers->end() && !found; ++it)
     {
@@ -1384,11 +1440,11 @@ void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
     {
         old_axes[i] = axes[i];
     }
+}
 
-    if(configFile.WriteConfigFile() < 0)
-    {
-      wxMessageBox(_("Can't save ") + wxString(configFile.GetFilePath().c_str(), wxConvUTF8), _("Error"), wxICON_ERROR);
-    }
+void fpsconfigFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
+{
+    save(configFile.GetDirectory(), configFile.GetFile());
 }
 
 void fpsconfigFrame::LoadConfig()
@@ -1438,8 +1494,8 @@ void fpsconfigFrame::LoadConfig()
           button->UnsetToolTip();
       }
   }
-  ButtonMappers[0] = configFile.GetController(0)->GetConfiguration(0)->GetButtonMapperList();
-  ButtonMappers[1] = configFile.GetController(0)->GetConfiguration(1)->GetButtonMapperList();
+  ButtonMappers[0] = configFile.GetController(0)->GetProfile(0)->GetButtonMapperList();
+  ButtonMappers[1] = configFile.GetController(0)->GetProfile(1)->GetButtonMapperList();
   if(ButtonMappers[0]->size() != ButtonMappers[1]->size())
   {
     warn = true;
@@ -1547,8 +1603,8 @@ void fpsconfigFrame::LoadConfig()
   wsmy.erase();
   mx = 0;
   my = 0;
-  AxisMappers[0] = configFile.GetController(0)->GetConfiguration(0)->GetAxisMapperList();
-  AxisMappers[1] = configFile.GetController(0)->GetConfiguration(1)->GetAxisMapperList();
+  AxisMappers[0] = configFile.GetController(0)->GetProfile(0)->GetAxisMapperList();
+  AxisMappers[1] = configFile.GetController(0)->GetProfile(1)->GetAxisMapperList();
   if(AxisMappers[0]->size() != AxisMappers[1]->size())
   {
     warn = true;
@@ -1592,7 +1648,7 @@ void fpsconfigFrame::LoadConfig()
               SpinCtrlDeadZoneHipFire->SetValue(wxAtoi(wxString(it->GetEvent()->GetDeadZone().c_str(), wxConvUTF8)));
               ChoiceDeadZoneShapeHipFire->SetStringSelection(_CN(it->GetEvent()->GetShape()));
 
-              mouseOptions = configFile.GetController(0)->GetConfiguration(0)->GetMouseOptionsList();
+              mouseOptions = configFile.GetController(0)->GetProfile(0)->GetMouseOptionsList();
               for(std::list<MouseOptions>::iterator it2 = mouseOptions->begin(); it2!=mouseOptions->end(); ++it2)
               {
                 if(it2->GetMouse()->GetName() == it->GetDevice()->GetName()
@@ -1620,7 +1676,7 @@ void fpsconfigFrame::LoadConfig()
                   if(my && mx)
                   {
                       xyratio = my / mx;
-                      wsxyratio = wxString::Format(wxT("%.02f"), xyratio);
+                      wsxyratio = FormatDouble(xyratio, decimalPoint);
 
                       TextCtrlXyRatioHipFire->SetValue(wsxyratio);
                       SpinCtrlXyRatioHipFire->SetValue(xyratio*100);
@@ -1642,7 +1698,7 @@ void fpsconfigFrame::LoadConfig()
               if(ToDouble(wsmy, &my, decimalPoint) && mx && my)
               {
                   xyratio = my / mx;
-                  wsxyratio = wxString::Format(wxT("%.02f"), xyratio);
+                  wsxyratio = FormatDouble(xyratio, decimalPoint);
 
                   TextCtrlXyRatioHipFire->SetValue(wsxyratio);
                   SpinCtrlXyRatioHipFire->SetValue(xyratio*100);
@@ -1711,7 +1767,7 @@ void fpsconfigFrame::LoadConfig()
               SpinCtrlDeadZoneADS->SetValue(wxAtoi(wxString(it->GetEvent()->GetDeadZone().c_str(), wxConvUTF8)));
               ChoiceDeadZoneShapeADS->SetStringSelection(_CN(it->GetEvent()->GetShape()));
 
-              mouseOptions = configFile.GetController(0)->GetConfiguration(1)->GetMouseOptionsList();
+              mouseOptions = configFile.GetController(0)->GetProfile(1)->GetMouseOptionsList();
               for(std::list<MouseOptions>::iterator it2 = mouseOptions->begin(); it2!=mouseOptions->end(); ++it2)
               {
                 if(it2->GetMouse()->GetName() == it->GetDevice()->GetName()
@@ -1739,7 +1795,7 @@ void fpsconfigFrame::LoadConfig()
                   if(my && mx)
                   {
                       xyratio = my / mx;
-                      wsxyratio = wxString::Format(wxT("%.02f"), xyratio);
+                      wsxyratio = FormatDouble(xyratio, decimalPoint);
 
                       TextCtrlXyRatioADS->SetValue(wsxyratio);
                       SpinCtrlXyRatioADS->SetValue(xyratio*100);
@@ -1761,7 +1817,7 @@ void fpsconfigFrame::LoadConfig()
               if(ToDouble(wsmy, &my, decimalPoint) && mx && my)
               {
                   xyratio = my / mx;
-                  wsxyratio = wxString::Format(wxT("%.02f"), xyratio);
+                  wsxyratio = FormatDouble(xyratio, decimalPoint);
 
                   TextCtrlXyRatioADS->SetValue(wsxyratio);
                   SpinCtrlXyRatioADS->SetValue(xyratio*100);
@@ -1779,18 +1835,41 @@ void fpsconfigFrame::LoadConfig()
   MenuItemSave->Enable(true);
 }
 
-void fpsconfigFrame::OnMenuOpen(wxCommandEvent& event __attribute__((unused)))
+void fpsconfigFrame::openConfiguration(const wxString& directory, const wxString& file)
 {
-    FileDialog1->SetDirectory(default_directory);
+    if (!::wxFileExists (directory + "/" + file)) {
+        wxMessageBox( _("Cannot open config file: ") + file, _("Error"), wxICON_ERROR);
+        return;
+    }
 
-    if ( FileDialog1->ShowModal() != wxID_OK ) return;
+    int ret = configFile.ReadConfigFile(TO_STRING(directory), TO_STRING(file));
 
-    wxString FileName = FileDialog1->GetPath();
-    if ( FileName.IsEmpty() ) return;
-
-    configFile.ReadConfigFile(string(FileName.mb_str(wxConvUTF8)));
+    if (ret < 0) {
+        wxMessageBox(TO_WXSTRING(configFile.GetError()), _("Error"), wxICON_ERROR);
+        return;
+    } else if (ret > 0) {
+        wxMessageBox(TO_WXSTRING(configFile.GetInfo()), _("Info"), wxICON_INFORMATION);
+    }
 
     LoadConfig();
+
+    wxTopLevelWindow::SetTitle(file + wxT(" - Gimx-fpsconfig"));
+    openedConfigFile = configFile;
+}
+
+void fpsconfigFrame::OnMenuOpen(wxCommandEvent& event __attribute__((unused)))
+{
+    wxFileDialog FileDialog(this, _("Select file"), TO_WXSTRING(configFile.GetDirectory()), wxEmptyString,
+            _("XML files (*.xml)|*.xml"), wxFD_DEFAULT_STYLE | wxFD_OPEN, wxDefaultPosition, wxDefaultSize,
+            _T("wxFileDialog"));
+
+    if ( FileDialog.ShowModal() == wxID_CANCEL) {
+        return;
+    }
+
+    checkSave();
+
+    openConfiguration(FileDialog.GetDirectory(), FileDialog.GetFilename());
 }
 
 void fpsconfigFrame::OnTextCtrlText(wxCommandEvent& event)
@@ -2005,13 +2084,13 @@ void fpsconfigFrame::OnButtonConvertSensitivityClick(wxCommandEvent& event __att
      */
     values[0] = values[0]*pow((double)current_dpi/dest_value, values[2]);
     SpinCtrlSensitivityHipFire->SetValue(values[0]*100);
-    wsm = wxString::Format(wxT("%.02f"), (double)values[0]);
+    wsm = FormatDouble(values[0], decimalPoint);
 
     TextCtrlSensitivityHipFire->SetValue(wsm);
 
     values[1] = values[1]*pow((double)current_dpi/dest_value, values[3]);
     SpinCtrlSensitivityADS->SetValue(values[1]*100);
-    wsm = wxString::Format(wxT("%.02f"), (double)values[1]);
+    wsm = FormatDouble(values[1], decimalPoint);
 
     TextCtrlSensitivityADS->SetValue(wsm);
 
@@ -2023,7 +2102,7 @@ void fpsconfigFrame::OnButtonConvertSensitivityClick(wxCommandEvent& event __att
 
 void fpsconfigFrame::OnMenuAutoBindControls(wxCommandEvent& event __attribute__((unused)))
 {
-  if(configFile.GetFilePath().empty())
+  if(configFile.GetFile().empty())
   {
     wxMessageBox( _("No config opened!"), _("Error"), wxICON_ERROR);
     return;
@@ -2036,7 +2115,7 @@ void fpsconfigFrame::OnMenuAutoBindControls(wxCommandEvent& event __attribute__(
   wxString FileName = FileDialog.GetPath();
   if ( FileName.IsEmpty() ) return;
 
-  if(configFile.AutoBind(string(FileName.mb_str(wxConvUTF8))) < 0)
+  if(configFile.AutoBind(TO_STRING(FileDialog.GetDirectory()), TO_STRING(FileDialog.GetFilename())) < 0)
   {
     wxMessageBox(_("Can't auto-bind controls!"), _("Error"), wxICON_ERROR);
   }
@@ -2073,13 +2152,11 @@ void fpsconfigFrame::readLabels()
   }
 
   wxString file;
-  wxString filepath;
   wxString filespec = wxT("*.xml");
 
   for (bool cont = dir.GetFirst(&file, filespec, wxDIR_FILES); cont;  cont = dir.GetNext(&file))
   {
-    filepath = default_directory + file;
-    ConfigurationFile::GetLabels(string(filepath.mb_str(wxConvUTF8)), blabels, alabels);
+    ConfigurationFile::GetLabels(TO_STRING(default_directory), TO_STRING(file), blabels, alabels);
   }
 
   blabels.sort(compare_nocase);

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2016 Mathieu Laurendeau <mat.lau@laposte.net>
+ Copyright (c) 2017 Mathieu Laurendeau <mat.lau@laposte.net>
  License: GPLv3
  */
 
@@ -10,7 +10,7 @@
 #include "gimx.h"
 #include "../info.h"
 #include <getopt.h>
-#include <adapter.h>
+#include <controller.h>
 #ifndef WIN32
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -27,6 +27,8 @@
 #else
 #define DEV_SERIAL "COM"
 #endif
+
+#define DEBUG_OPTION_PREFIX "debug."
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -84,6 +86,11 @@ static void usage()
   printf("    filename: The name of the log file, in the ~/.gimx/log directory (make sure this folder exists).\n");
   printf("  --skip_leds: Filter out set led commands from FFB command stream (performance tweak for G27/G29 wheels on small targets).\n");
   printf("  --ff_conv: Force OS translation for FFB commands on Windows.\n");
+  printf("  --timeout value: Exit if controllers are inactive during a given number of minutes.\n");
+
+  printf("  --show-debug-flags: Show all available debug flags.\n");
+
+  printf("  --auto-grab: Grab if config has at least one keyboard or mouse binding. This argument overrides the --nograb one\n");
 }
 
 /*
@@ -142,11 +149,14 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
     {"curses",         no_argument, &params->curses,         1},
     {"window-events",  no_argument, &params->window_events,  1},
     {"btstack",        no_argument, &params->btstack,        1},
-    {"debug.ff_lg",    no_argument, &params->debug.ff_lg,    1},
-    {"debug.ff_conv",  no_argument, &params->debug.ff_conv,  1},
-    {"debug.adapter",  no_argument, &params->debug.adapter,  1},
+    {"debug.haptic",   no_argument, &params->debug.haptic,   1},
+    {"debug.controller", no_argument, &params->debug.controller,  1},
+    {"debug.macros",   no_argument, &params->debug.macros,   1},
+    {"debug.sixaxis",  no_argument, &params->debug.sixaxis,  1},
+    {"debug.config",   no_argument, &params->debug.config,   1},
     {"skip_leds",      no_argument, &params->skip_leds,      1},
     {"ff_conv",        no_argument, &params->ff_conv,        1},
+    {"auto-grab",      no_argument, &params->autograb,       1},
     /* These options don't set a flag. We distinguish them by their indices. */
     {"bdaddr",  required_argument, 0, 'b'},
     {"config",  required_argument, 0, 'c'},
@@ -157,10 +167,12 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
     {"keygen",  required_argument, 0, 'k'},
     {"log",     required_argument, 0, 'l'},
     {"port",    required_argument, 0, 'p'},
+    {"timeout", required_argument, 0, 'q'},
     {"refresh", required_argument, 0, 'r'},
     {"src",     required_argument, 0, 's'},
     {"type",    required_argument, 0, 't'},
     {"version", no_argument,       0, 'v'},
+    {"show-debug-flags", no_argument, 0, 'z'},
     {0, 0, 0, 0}
   };
   
@@ -169,7 +181,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
     /* getopt_long stores the option index here. */
     int option_index = 0;
 
-    c = getopt_long (argc, argv, "b:c:d:e:h:k:l:p:r:s:t:vm", long_options, &option_index);
+    c = getopt_long (argc, argv, "b:c:d:e:h:k:l:p:r:s:t:vmz", long_options, &option_index);
 
     /* Detect the end of the options. */
     if (c == -1)
@@ -195,7 +207,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
 
       case 'b':
         adapter_get(controller)->atype = E_ADAPTER_TYPE_BLUETOOTH;
-        adapter_get(controller)->bdaddr_dst = optarg;
+        adapter_get(controller)->bt.bdaddr_dst = optarg;
         if(adapter_get(controller)->ctype == C_TYPE_NONE)
         {
           adapter_get(controller)->ctype = C_TYPE_SIXAXIS;
@@ -218,7 +230,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
           int value;
           if(sscanf(optarg, "%"STR(AXIS_NAME_MAX_SIZE)"[^(](%d)", label, &value) != 2)
           {
-            fprintf(stderr, _("Bad event format: %s\n"), optarg);
+            gerror(_("Bad event format: %s\n"), optarg);
             ret = -1;
           }
           else
@@ -236,7 +248,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
             }
             else
             {
-              fprintf(stderr, _("Bad axis name for event: %s\n"), optarg);
+              gerror(_("Bad axis name for event: %s\n"), optarg);
               ret = -1;
             }
           }
@@ -244,15 +256,15 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
         break;
 
       case 'h':
-        adapter_get(controller)->dongle_index = atoi(optarg);
-        printf(_("controller #%d: option -h with value `%d'\n"), controller + 1, adapter_get(controller)->dongle_index);
+        adapter_get(controller)->bt.index = atoi(optarg);
+        printf(_("controller #%d: option -h with value `%d'\n"), controller + 1, adapter_get(controller)->bt.index);
         break;
 
       case 'd':
-        if(read_ip(optarg, &adapter_get(controller)->dst_ip,
-            &adapter_get(controller)->dst_port) < 0)
+        if(read_ip(optarg, &adapter_get(controller)->remote.ip,
+            &adapter_get(controller)->remote.port) < 0)
         {
-          printf(_("Bad format for argument -d: '%s'\n"), optarg);
+          gerror(_("Bad format for argument -d: '%s'\n"), optarg);
           ret = -1;
         }
         else
@@ -273,7 +285,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
         if(read_ip(optarg, &adapter_get(controller)->src_ip,
             &adapter_get(controller)->src_port) < 0)
         {
-          printf(_("Bad format for argument -s: '%s'\n"), optarg);
+          gerror(_("Bad format for argument -s: '%s'\n"), optarg);
           ret = -1;
         }
         else
@@ -307,7 +319,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
               }
               else
               {
-                printf(_("can't open log file (%s)\n"), file_path);
+                gerror(_("can't open log file (%s)\n"), file_path);
                 ret = -1;
               }
             }
@@ -315,13 +327,13 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
           }
           else
           {
-            printf(_("log file can't be used with curses\n"));
+            gerror(_("log file can't be used with curses\n"));
             ret = -1;
           }
         }
         else
         {
-          printf(_("only one log file can be specified\n"));
+          gerror(_("only one log file can be specified\n"));
           ret = -1;
         }
         break;
@@ -341,7 +353,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
         }
         if(adapter_set_port(controller, optarg) < 0)
         {
-          printf(_("port already used: `%s'\n"), optarg);
+          gerror(_("port already used: `%s'\n"), optarg);
           ret = -1;
         }
         else
@@ -350,6 +362,11 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
           ++controller;
           printf(_("now reading arguments for controller #%d\n"), controller + 1);
         }
+        break;
+
+      case 'q':
+        gimx_params.inactivity_timeout = atoi(optarg);
+        printf(_("global option -q with value `%s'\n"), optarg);
         break;
 
       case 'r':
@@ -361,7 +378,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
         }
         else
         {
-          fprintf(stderr, "Bad refresh period: %s\n", optarg);
+          gerror("Bad refresh period: %s\n", optarg);
           ret = -1;
         }
         break;
@@ -377,7 +394,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
           adapter_get(controller)->ctype = controller_get_type(optarg);
           if (adapter_get(controller)->ctype == C_TYPE_NONE)
           {
-            fprintf(stderr, "Bad controller type: %s\n", optarg);
+            gerror("Bad controller type: %s\n", optarg);
             ret = -1;
           }
         }
@@ -393,8 +410,23 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
         exit(-1);
         break;
 
+      case 'z':
+        {
+          printf("debug options:\n");
+          int i;
+          for (i = 0; long_options[i].name != NULL; ++i)
+          {
+            if(strstr(long_options[i].name, DEBUG_OPTION_PREFIX) == long_options[i].name)
+            {
+              printf("%s\n", long_options[i].name + sizeof(DEBUG_OPTION_PREFIX) - 1);
+            }
+          }
+          exit(0);
+        }
+        break;
+
       default:
-        printf(_("unrecognized option: %c\n"), c);
+        gerror(_("unrecognized option: %c\n"), c);
         ret = -1;
         break;
     }
@@ -421,26 +453,18 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
     printf(_("skip_leds flag is set\n"));
   if(params->ff_conv)
     printf(_("ff_conv flag is set\n"));
+  if(params->autograb)
+    printf(_("auto-grab flag is set\n"));
 
   if(!input)
   {
-    fprintf(stderr, "At least a config file, an event, or a source IP:port should be specified as argument.\n");
+    gerror("At least a config file, an event, or a source IP:port should be specified as argument.\n")
     ret = -1;
   }
 
   if(params->logfile)
   {
     log_info();
-  }
-
-  if (params->debug.ff_conv != 0)
-  {
-    params->debug.ff_lg = 1;
-    params->debug.ff_common = 1;
-  }
-  if (params->debug.ff_lg != 0)
-  {
-    params->debug.ff_common = 1;
   }
 
   return ret;

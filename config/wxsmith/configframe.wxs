@@ -1054,11 +1054,93 @@
 															</object>
 															<object class="sizeritem">
 																<object class="wxFlexGridSizer" variable="FlexGridSizer56" member="no">
-																	<cols>1</cols>
-																	<rows>1</rows>
+																	<cols>5</cols>
+																	<rows>2</rows>
 																	<object class="sizeritem">
-																		<object class="wxCheckBox" name="ID_CHECKBOX2" variable="FFBTweaksInvert" member="yes">
+																		<object class="wxStaticText" name="ID_STATICTEXT31" variable="StaticText4" member="yes">
 																			<label>Invert direction</label>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxStaticText" name="ID_STATICTEXT50" variable="StaticText5" member="yes">
+																			<label>Rumble</label>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxStaticText" name="ID_STATICTEXT29" variable="StaticText10" member="yes">
+																			<label>Constant</label>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxStaticText" name="ID_STATICTEXT33" variable="StaticText16" member="yes">
+																			<label>Spring</label>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxStaticText" name="ID_STATICTEXT48" variable="StaticText19" member="yes">
+																			<label>Damper</label>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxCheckBox" name="ID_CHECKBOX2" variable="FFBTweaksInvert" member="yes" />
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxSpinCtrl" name="ID_SPINCTRL4" variable="FFBTweaksRumbleGain" member="yes">
+																			<value>100</value>
+																			<min>-1000</min>
+																			<max>1000</max>
+																			<size>55,-1</size>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxSpinCtrl" name="ID_SPINCTRL3" variable="FFBTweaksConstantGain" member="yes">
+																			<value>100</value>
+																			<min>-1000</min>
+																			<max>1000</max>
+																			<size>55,-1</size>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxSpinCtrl" name="ID_SPINCTRL2" variable="FFBTweaksSpringGain" member="yes">
+																			<value>100</value>
+																			<min>-1000</min>
+																			<max>1000</max>
+																			<size>55,-1</size>
+																		</object>
+																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+																		<border>5</border>
+																		<option>1</option>
+																	</object>
+																	<object class="sizeritem">
+																		<object class="wxSpinCtrl" name="ID_SPINCTRL1" variable="FFBTweaksDamperGain" member="yes">
+																			<value>100</value>
+																			<min>-1000</min>
+																			<max>1000</max>
+																			<size>55,-1</size>
 																		</object>
 																		<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
 																		<border>5</border>
@@ -1124,7 +1206,6 @@
 														<object class="sizeritem">
 															<object class="wxStaticText" name="ID_STATICTEXT38" variable="ButtonTabDeviceType" member="yes">
 																<label></label>
-																<hidden>1</hidden>
 															</object>
 															<flag>wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
 															<border>5</border>
@@ -1951,44 +2032,44 @@
 					<radio>1</radio>
 				</object>
 			</object>
-			<object class="wxMenu" variable="MenuConfiguration" member="yes">
+			<object class="wxMenu" variable="MenuProfile" member="yes">
 				<label>Profile</label>
-				<object class="wxMenuItem" name="ID_MENUITEM8" variable="MenuConfiguration1" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM8" variable="MenuProfile1" member="yes">
 					<label>1</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM9" variable="MenuConfiguration2" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM9" variable="MenuProfile2" member="yes">
 					<label>2</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM10" variable="MenuConfiguration3" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM10" variable="MenuProfile3" member="yes">
 					<label>3</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM11" variable="MenuConfiguration4" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM11" variable="MenuProfile4" member="yes">
 					<label>4</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM13" variable="MenuConfiguration5" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM13" variable="MenuProfile5" member="yes">
 					<label>5</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM14" variable="MenuConfiguration6" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM14" variable="MenuProfile6" member="yes">
 					<label>6</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM15" variable="MenuConfiguration7" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM15" variable="MenuProfile7" member="yes">
 					<label>7</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
 				</object>
-				<object class="wxMenuItem" name="ID_MENUITEM16" variable="MenuConfiguration8" member="yes">
+				<object class="wxMenuItem" name="ID_MENUITEM16" variable="MenuProfile8" member="yes">
 					<label>8</label>
 					<handler function="OnMenuItemConfiguration" entry="EVT_MENU" />
 					<radio>1</radio>
@@ -2008,7 +2089,6 @@
 				</object>
 				<object class="wxMenuItem" name="ID_MENUITEM25" variable="MenuItemLinkControls" member="yes">
 					<label>Link controls</label>
-					<checked>1</checked>
 					<checkable>1</checkable>
 				</object>
 				<object class="wxMenuItem" name="ID_MENUITEM27" variable="MenuAutoBindControls" member="yes">
@@ -2030,11 +2110,6 @@
 			<fields>1</fields>
 			<widths>-1</widths>
 			<styles>wxSB_NORMAL</styles>
-		</object>
-		<object class="wxFileDialog" variable="FileDialog1" member="yes">
-			<message>Select file</message>
-			<wildcard>XML files (*.xml)|*.xml</wildcard>
-			<style>wxFD_DEFAULT_STYLE|wxFD_OPEN</style>
 		</object>
 	</object>
 </wxsmith>

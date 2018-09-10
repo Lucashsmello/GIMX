@@ -12,15 +12,7 @@ else
 OUT=gimx.exe
 endif
 
-CPPFLAGS += $(GIMXHID_CPPFLAGS) \
-            $(GIMXGPP_CPPFLAGS) \
-            $(GIMXCONTROLLER_CPPFLAGS) \
-            $(GIMXINPUT_CPPFLAGS) \
-            $(GIMXPOLL_CPPFLAGS) \
-            $(GIMXPRIO_CPPFLAGS) \
-            $(GIMXSERIAL_CPPFLAGS) \
-            $(GIMXTIMER_CPPFLAGS) \
-            $(GIMXUSB_CPPFLAGS)
+CPPFLAGS += $(GIMXINPUT_CPPFLAGS)
 
 LDLIBS += $(GIMXHID_LDLIBS) \
           $(GIMXGPP_LDLIBS) \
@@ -60,6 +52,9 @@ OBJECTS += $(patsubst %.c,%.o,$(wildcard connectors/*.c))
 OBJECTS += $(patsubst %.c,%.o,$(wildcard connectors/gpp/*.c))
 OBJECTS += $(patsubst %.c,%.o,$(wildcard connectors/report2event/*.c))
 OBJECTS += $(patsubst %.c,%.o,$(wildcard haptic/*.c))
+OBJECTS += $(patsubst %.c,%.o,$(wildcard haptic/source/*.c))
+OBJECTS += $(patsubst %.c,%.o,$(wildcard haptic/sink/*.c))
+OBJECTS += $(patsubst %.c,%.o,$(wildcard haptic/common/*.c))
 ifneq ($(OS),Windows_NT)
 OBJECTS += $(patsubst %.c,%.o,$(wildcard system/linux/*.c))
 OBJECTS += $(patsubst %.c,%.o,$(wildcard connectors/linux/*/*.c))

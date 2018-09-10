@@ -14,9 +14,9 @@
 #include "display.h"
 
 #include "calibration.h"
-#include <ginput.h>
+#include <gimxinput/include/ginput.h>
 #include "gimx.h"
-#include <adapter.h>
+#include <controller.h>
 #include <stats.h>
 
 #define CROSS_CHAR '*'
@@ -29,11 +29,10 @@
 #endif
 #define STICK_X_L 21
 
-//#define BUTTON_Y_L 3
-//#define BUTTON_X_L 3
+#define BUTTON_LENGTH sizeof("shifter forward: 65535")
 
 #define BUTTON_Y_L STICK_Y_L
-#define BUTTON_X_L 16
+#define BUTTON_X_L BUTTON_LENGTH + 1
 
 #define LSTICK_Y_P 2
 #define LSTICK_X_P 2
@@ -46,14 +45,6 @@
 
 #define CAL_Y_P LSTICK_Y_P + STICK_Y_L
 #define CAL_X_P 2
-
-//#define BUTTON_Y_P LSTICK_Y_P + STICK_Y_L
-//#define BUTTON_X_P LSTICK_X_P
-
-#define BUTTON_W LABEL_LENGTH + BUTTON_X_L + 2
-
-#define LABEL_LENGTH sizeof("triangle")
-#define BUTTON_LENGTH LABEL_LENGTH + sizeof(": 255")
 
 static WINDOW *lstick = NULL, *rstick = NULL, *wbuttons = NULL, *wcal = NULL;
 
@@ -334,6 +325,7 @@ void display_init()
   mvaddstr(LINES-1, 1, _("Refresh rate:"));
   mvaddstr(LINES-1, COLS-strlen(SHIFT_ESC), SHIFT_ESC);
 
+  wnoutrefresh(stdscr);
   doupdate();
 }
 
@@ -345,30 +337,33 @@ void display_end()
   }
 }
 
-static int last_button_nb = 0;
-
-void display_run(e_controller_type type, int axis[])
+static void show_stats()
 {
-  int i;
-  int d;
-  char label[BUTTON_LENGTH];
   char rate[COLS];
 
   int freq = stats_get_frequency(0);
 
   if(freq >= 0)
   {
-    sprintf(rate, _("Refresh rate: %4dHz  "), freq);
+    snprintf(rate, sizeof(rate), _("Refresh rate: %4dHz  "), freq);
     mvaddstr(LINES-1, 1, rate);
   }
+}
 
-  d = 0;
+static int last_button_nb = 0;
+
+static void show_axes(e_controller_type type, int axis[])
+{
+  char label[BUTTON_LENGTH];
+  int d = 0;
+  int i;
 
   for(i=rel_axis_rstick_y+1; i<AXIS_MAX; ++i)
   {
     if(axis[i])
     {
-      snprintf(label, sizeof(label), "%8s: %4d", controller_get_axis_name(type, i), axis[i]);
+      snprintf(label, sizeof(label), "%15s: %5d", controller_get_axis_name(type, i), axis[i]);
+
       mvwaddstr(wbuttons, 1 + d, 1, label);
       d++;
       if(d == BUTTON_Y_L - 3)
@@ -411,6 +406,16 @@ void display_run(e_controller_type type, int axis[])
     mvwaddch(rstick, cross[1][1], cross[1][0], CROSS_CHAR);
   }
   wnoutrefresh(rstick);
+}
+
+void display_run(e_controller_type type, int axis[])
+{
+  show_stats();
+
+  if (axis != NULL)
+  {
+    show_axes(type, axis);
+  }
 
   move(LINES-1, COLS-1);
   wnoutrefresh(stdscr);

@@ -6,8 +6,9 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
-#include <ginput.h>
-#include <controller2.h>
+#include <gimxinput/include/ginput.h>
+#include <gimxcontroller/include/controller.h>
+#include <haptic/haptic_core.h>
 
 #define MAX_BUFFERSIZE 256
 
@@ -43,15 +44,18 @@ typedef enum
 
 typedef struct
 {
-  int change;
-  int changed;
-  double merge_x[MAX_BUFFERSIZE];
-  double merge_y[MAX_BUFFERSIZE];
-  int index;
   double x;
   double y;
-  double residue_x;
-  double residue_y;
+}s_vector;
+
+typedef struct
+{
+  int change;
+  int changed;
+  s_vector merge[MAX_BUFFERSIZE];
+  int index;
+  s_vector motion;
+  s_vector residue;
   int postpone[GE_MOUSE_BUTTONS_MAX];
 }s_mouse_control;
 
@@ -64,7 +68,7 @@ typedef struct
 
 typedef struct
 {
-  unsigned int axis;
+  int axis;
   int coef[4];
 } s_js_corr;
 
@@ -83,7 +87,7 @@ typedef struct
   unsigned int dpi;
 }s_mouse_cal;
 
-typedef struct
+typedef struct _mapper
 {
   int button;
   int axis;
@@ -94,6 +98,10 @@ typedef struct
   int dead_zone;
 
   s_axis_props axis_props;
+
+  // if the mapper destination is a stick axis,
+  // this indicates the mapper for the other axis of the stick
+  struct _mapper * other;
 }s_mapper;
 
 typedef struct
@@ -105,20 +113,11 @@ typedef struct
 typedef struct
 {
   unsigned int controller_id;
-  unsigned int config_id;
+  unsigned int profile_id;
   struct
   {
     e_device_type type;
     int id;
-#ifndef WIN32
-    int hid;
-#else
-    struct
-    {
-      unsigned short vendor;
-      unsigned short product;
-    } usb_ids;
-#endif
   } device;
   struct
   {
@@ -138,6 +137,13 @@ typedef struct
     struct
     {
       int invert;
+      struct
+      {
+        int rumble;
+        int constant;
+        int spring;
+        int damper;
+      } gain;
     } ffb_tweaks;
   } params;
 }s_config_entry;
@@ -174,13 +180,9 @@ typedef struct
   double dead_zone;
 }s_intensity;
 
-typedef struct {
-  int invert;
-} s_ffb_tweaks;
-
 void cfg_trigger_init();
 void cfg_trigger_lookup(GE_Event*);
-void cfg_config_activation();
+void cfg_profile_activation();
 void cfg_intensity_lookup(GE_Event*);
 void cfg_process_event(GE_Event*);
 s_mouse_control* cfg_get_mouse_control(int);
@@ -197,9 +199,11 @@ int cfg_add_binding(s_config_entry* entry);
 s_mapper_table* cfg_get_mouse_axes(int, int, int);
 void cfg_clean();
 void cfg_read_calibration();
-void cfg_add_js_corr(uint8_t device, s_js_corr * corr);
+int cfg_add_js_corr(int joystick, s_js_corr * corr);
 void cfg_set_ffb_tweaks(const s_config_entry * entry);
-const s_ffb_tweaks * cfg_get_ffb_tweaks(int controller);
+const s_haptic_core_tweaks * cfg_get_ffb_tweaks(int controller);
 void cfg_init_ffb_tweaks();
+void cfg_pair_mouse_mappers();
+void cfg_set_profile(int controller, int profile);
 
 #endif /* CONFIG_H_ */

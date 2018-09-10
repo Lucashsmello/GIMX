@@ -1,0 +1,36 @@
+[submodule "shared/gimx-adapter-protocol"]
+	path = shared/gimx-adapter-protocol
+	url = https://github.com/matlo/gimx-adapter-protocol.git
+[submodule "shared/gimxpoll"]
+	path = shared/gimxpoll
+	url = https://github.com/matlo/gimxpoll.git
+[submodule "shared/gimxprio"]
+	path = shared/gimxprio
+	url = https://github.com/matlo/gimxprio.git
+[submodule "shared/gimxusb"]
+	path = shared/gimxusb
+	url = https://github.com/matlo/gimxusb.git
+[submodule "shared/gimxhid"]
+	path = shared/gimxhid
+	url = https://github.com/matlo/gimxhid.git
+[submodule "shared/gimxinput"]
+	path = shared/gimxinput
+	url = https://github.com/matlo/gimxinput.git
+[submodule "shared/gimxserial"]
+	path = shared/gimxserial
+	url = https://github.com/matlo/gimxserial.git
+[submodule "shared/gimxtimer"]
+	path = shared/gimxtimer
+	url = https://github.com/matlo/gimxtimer.git
+[submodule "shared/gimxuhid"]
+	path = shared/gimxuhid
+	url = https://github.com/matlo/gimxuhid.git
+[submodule "shared/gimxcommon"]
+	path = shared/gimxcommon
+	url = https://github.com/matlo/gimxcommon.git
+[submodule "shared/gimx-network-protocol"]
+	path = shared/gimx-network-protocol
+	url = https://github.com/matlo/gimx-network-protocol.git
+[submodule "shared/gimxlog"]
+	path = shared/gimxlog
+	url = https://github.com/matlo/gimxlog.git

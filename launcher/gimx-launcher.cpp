@@ -32,10 +32,9 @@
 #include "launcher.h"
 
 #include "../directories.h"
-#include "../shared/updater/updater.h"
-#include "../shared/configupdater/configupdater.h"
-#include "../shared/gpp/pcprog.h"
-#include <ConfigurationFile.h>
+#include <gimxconfigupdater/configupdater.h>
+#include <gimxgpp/pcprog.h>
+#include <gimxconfigeditor/include/ConfigurationFile.h>
 
 #include <wx/arrstr.h>
 #include <wx/stdpaths.h>
@@ -43,8 +42,12 @@
 #include <wx/numdlg.h>
 
 #include <time.h>
-#include <ghid.h>
-#include <gserial.h>
+#include <gimxhid/include/ghid.h>
+#include <gimxserial/include/gserial.h>
+#include <gimxinput/include/ginput.h>
+#include <gimxpoll/include/gpoll.h>
+
+#include "SetupManager.h"
 
 #ifdef WIN32
 #define REGISTER_FUNCTION gpoll_register_handle
@@ -76,6 +79,8 @@ using namespace std;
 
 #define START_UPDATES "/startUpdates"
 
+#define GRAB_CHOICE_FILE "/grabChoice"
+
 #define BLUETOOTH_LK_DIR "/bluetooth"
 #define BLUETOOTH_LK_FILE "/linkkeys"
 
@@ -86,6 +91,9 @@ using namespace std;
 #define GPP_NAME "GPP/Cronus/Titan"
 
 #define CONSOLETUNER_VID 0x2508
+
+#define TO_STRING(WXSTRING) string(WXSTRING.mb_str(wxConvUTF8))
+#define TO_WXSTRING(STRING) wxString(STRING.c_str(), wxConvUTF8)
 
 //(*IdInit(launcherFrame)
 const long launcherFrame::ID_STATICTEXT4 = wxNewId();
@@ -101,13 +109,14 @@ const long launcherFrame::ID_BUTTON4 = wxNewId();
 const long launcherFrame::ID_STATICTEXT5 = wxNewId();
 const long launcherFrame::ID_CHOICE4 = wxNewId();
 const long launcherFrame::ID_STATICTEXT6 = wxNewId();
-const long launcherFrame::ID_CHECKBOX1 = wxNewId();
+const long launcherFrame::ID_CHOICE6 = wxNewId();
 const long launcherFrame::ID_BUTTON1 = wxNewId();
 const long launcherFrame::ID_BUTTON3 = wxNewId();
 const long launcherFrame::ID_PANEL1 = wxNewId();
 const long launcherFrame::ID_MENUITEM1 = wxNewId();
 const long launcherFrame::ID_MENUITEM2 = wxNewId();
 const long launcherFrame::ID_MENUITEM8 = wxNewId();
+const long launcherFrame::ID_MENUITEM11 = wxNewId();
 const long launcherFrame::ID_MENUITEM7 = wxNewId();
 const long launcherFrame::ID_MENUITEM3 = wxNewId();
 const long launcherFrame::ID_MENUITEM9 = wxNewId();
@@ -124,6 +133,16 @@ BEGIN_EVENT_TABLE(launcherFrame,wxFrame)
     //(*EventTable(launcherFrame)
     //*)
 END_EVENT_TABLE()
+
+static int progress_callback_updater(void *clientp, Updater::UpdaterStatus status, double progress, double total)
+{
+    return ((launcherFrame *) clientp)->OnUpdateProgress(status, progress, total);
+}
+
+static int progress_callback_configupdater(void *clientp, configupdater::ConfigUpdaterStatus status, double progress, double total)
+{
+    return ((launcherFrame *) clientp)->OnUpdateProgress(status, progress, total);
+}
 
 /*
  * \brief This function performs a synchronous execution of a given command, and parses the command output.
@@ -391,8 +410,8 @@ void launcherFrame::readSerialPorts()
   for(i=0; i<MAX_PORT_ID; ++i)
   {
     snprintf(portname, sizeof(portname), "COM%d", i);
-    int device = gserial_open(portname, 500000);
-    if(device >= 0) {
+    struct gserial_device * device = gserial_open(portname, 500000);
+    if(device != NULL) {
       OutputChoice->SetSelection(OutputChoice->Append(wxString(portname, wxConvUTF8)));
       gserial_close(device);
     }
@@ -484,7 +503,11 @@ void launcherFrame::readSerialPorts()
    */
   if (OutputChoice->FindString(wxT("ttyS0")) != wxNOT_FOUND)
   {
-    OutputChoice->Delete(OutputChoice->FindString(wxT("ttyAMA0")));
+    int pos = OutputChoice->FindString(wxT("ttyAMA0"));
+    if (pos != wxNOT_FOUND)
+    {
+      OutputChoice->Delete(pos);
+    }
   }
 #endif
 
@@ -501,7 +524,7 @@ void launcherFrame::readSerialPorts()
 
 void launcherFrame::readHidPorts()
 {
-  struct ghid_device *devs, *cur_dev;
+  struct ghid_device_info *devs, *cur_dev;
 
   wxString previous = OutputChoice->GetStringSelection();
 
@@ -777,7 +800,11 @@ void launcherFrame::readParam(const char* file, wxChoice* choice)
     if( infile.good() )
     {
       getline (infile,line);
-      choice->SetSelection(choice->FindString(wxString(line.c_str(), wxConvUTF8)));
+      int pos = choice->FindString(wxString(line.c_str(), wxConvUTF8));
+      if (pos != wxNOT_FOUND)
+      {
+        choice->SetSelection(pos);
+      }
     }
     infile.close();
   }
@@ -805,6 +832,124 @@ void launcherFrame::readStartUpdates()
   }
 }
 
+#ifdef WIN32
+#define REGISTER_FUNCTION gpoll_register_handle
+#define REMOVE_FUNCTION gpoll_remove_handle
+#else
+#define REGISTER_FUNCTION gpoll_register_fd
+#define REMOVE_FUNCTION gpoll_remove_fd
+#endif
+
+int process_cb(GE_Event* event __attribute__((unused)))
+{
+    return 0;
+}
+
+bool launcherFrame::getConfig(const std::string& config)
+{
+    string dir = string(gimxConfigDir.mb_str(wxConvUTF8));
+
+    wxString wxfile = wxString(dir.c_str(), wxConvUTF8) + wxString(config.c_str(), wxConvUTF8);
+    if (::wxFileExists(wxfile))
+    {
+      return false;
+    }
+
+    wxProgressDialog dlg(_("Downloading ") + wxString(config.c_str(), wxConvUTF8), _("Connecting"), 100, NULL, wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_CAN_ABORT | wxPD_REMAINING_TIME | wxPD_SMOOTH);
+    initDownload(&dlg);
+    configupdater::ConfigUpdaterStatus status = configupdater().getconfig(dir, config, progress_callback_configupdater, this);
+    cleanDownload();
+
+    return status == configupdater::ConfigUpdaterStatusOk;
+}
+
+void launcherFrame::autoConfig()
+{
+    list<std::string> joysticks;
+
+    GPOLL_INTERFACE poll_interace =
+    {
+            .fp_register = REGISTER_FUNCTION,
+            .fp_remove = REMOVE_FUNCTION,
+    };
+    if(ginput_init(&poll_interace, GE_MKB_SOURCE_NONE, process_cb) < 0)
+    {
+        ginput_quit();
+        return;
+    }
+
+    for (int i = 0; ginput_joystick_name(i) != NULL; ++i)
+    {
+        joysticks.push_back(ginput_joystick_name(i));
+    }
+
+    ginput_quit();
+
+    // TODO MLA: have an online index with device -> config, and be able to merge multiple configs
+
+    struct
+    {
+        string name;
+        string config;
+    } configs [] =
+#ifndef WIN32
+    {
+            { "Logitech Inc. WingMan Formula", "LogitechWingManFormula_G29.xml" },
+            { "Logitech Inc. WingMan Formula GP", "LogitechWingManFormulaGP_G29.xml" },
+            { "Logitech Inc. WingMan Formula Force", "LogitechWingManFormulaForce_G29.xml" },
+            { "Logitech Inc. WingMan Formula Force GP", "LogitechWingManFormulaForceGP_G29.xml" },
+            { "Logitech Logitech Driving Force", "LogitechDrivingForce_G29.xml" },
+            { "Logitech Logitech Driving Force EX", "LogitechDrivingForceEx_G29.xml" },
+            { "Logitech Logitech Driving Force Rx", "LogitechDrivingForceRx_G29.xml" },
+            { "Logitech Logitech Formula Force EX", "LogitechFormulaForceEx_G29.xml" },
+            { "PS3/USB Cordless Wheel", "LogitechDrivingForceWireless_DS4.xml" },
+            // TODO MLA { "Logitech MOMO Force USB", "LogitechMomoForce_G29.xml" },
+            { "Logitech Logitech Driving Force Pro", "LogitechDrivingForcePro_G29.xml" },
+            { "G25 Racing Wheel", "LogitechG25_G29.xml" },
+            { "Driving Force GT", "LogitechDrivingForceGT_G29.xml" },
+            { "G27 Racing Wheel", "LogitechG27_G29.xml" },
+            { "Logitech  Logitech MOMO Racing ", "LogitechMomoRacing_G29.xml" },
+            { "Logitech G920 Driving Force Racing Wheel", "LogitechG920_G29.xml" },
+    };
+#else
+    {
+            { "Logitech WingMan Formula (Yellow) (USB)", "LogitechWingManFormula_G29.xml" },
+            { "Logitech WingMan Formula GP", "LogitechWingManFormulaGP_G29.xml" },
+            { "Logitech WingMan Formula Force USB", "LogitechWingManFormulaForce_G29.xml" },
+            { "Logitech WingMan Formula Force GP USB", "LogitechWingManFormulaForceGP_G29.xml" },
+            { "Logitech Driving Force USB", "LogitechDrivingForce_G29.xml" },
+            { "Logitech MOMO Force USB", "LogitechMomoForce_G29.xml" },
+            { "Logitech Driving Force Pro USB", "LogitechDrivingForcePro_G29.xml" },
+            { "Logitech G25 Racing Wheel USB", "LogitechG25_G29.xml" },
+            { "Logitech Driving Force GT USB", "LogitechDrivingForceGT_G29.xml" },
+            { "Logitech G27 Racing Wheel USB", "LogitechG27_G29.xml" },
+            { "Logitech MOMO Racing USB", "LogitechMomoRacing_G29.xml" },
+            { "Logitech G920 Driving Force Racing Wheel USB", "LogitechG920_G29.xml" },
+    };
+#endif
+
+    bool refresh = false;
+
+    for (list<string>::iterator it = joysticks.begin(); it != joysticks.end(); ++it)
+    {
+        for (unsigned int i = 0; i < sizeof(configs) / sizeof(*configs); ++i)
+        {
+            if (*it == configs[i].name)
+            {
+                if (getConfig(configs[i].config))
+                {
+                    refresh = true;
+                }
+            }
+        }
+    }
+
+    if (refresh)
+    {
+        readConfigs();
+    }
+}
+
 launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unused)))
 {
     locale = new wxLocale(wxLANGUAGE_DEFAULT);
@@ -812,8 +957,6 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
     locale->AddCatalogLookupPathPrefix(wxT("share/locale"));
 #endif
     locale->AddCatalog(wxT("gimx"));
-
-    setlocale( LC_NUMERIC, "C" ); /* Make sure we use '.' to write doubles. */
 
     //(*Initialize(launcherFrame)
     wxMenuItem* MenuItem2;
@@ -876,11 +1019,13 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
     FlexGridSizer3->Add(ProcessOutputChoice, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     FlexGridSizer8->Add(FlexGridSizer3, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     MouseSizer = new wxFlexGridSizer(1, 2, 0, 0);
-    StaticText5 = new wxStaticText(Panel1, ID_STATICTEXT6, _("Grab mouse"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT6"));
+    StaticText5 = new wxStaticText(Panel1, ID_STATICTEXT6, _("Mouse capture"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT6"));
     MouseSizer->Add(StaticText5, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    CheckBoxGrab = new wxCheckBox(Panel1, ID_CHECKBOX1, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX1"));
-    CheckBoxGrab->SetValue(true);
-    MouseSizer->Add(CheckBoxGrab, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    MouseGrabChoice = new wxChoice(Panel1, ID_CHOICE6, wxDefaultPosition, wxDefaultSize, 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE6"));
+    MouseGrabChoice->SetSelection( MouseGrabChoice->Append(_("auto")) );
+    MouseGrabChoice->Append(_("on"));
+    MouseGrabChoice->Append(_("off"));
+    MouseSizer->Add(MouseGrabChoice, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     FlexGridSizer8->Add(MouseSizer, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     FlexGridSizer1->Add(FlexGridSizer8, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     FlexGridSizer7 = new wxFlexGridSizer(1, 2, 0, 0);
@@ -900,6 +1045,8 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
     Menu1->Append(MenuEditFpsConfig);
     MenuItem3 = new wxMenuItem(Menu1, ID_MENUITEM8, _("Open config directory"), wxEmptyString, wxITEM_NORMAL);
     Menu1->Append(MenuItem3);
+    MenuItem6 = new wxMenuItem(Menu1, ID_MENUITEM11, _("Open macro directory"), wxEmptyString, wxITEM_NORMAL);
+    Menu1->Append(MenuItem6);
     MenuAutoBindControls = new wxMenuItem(Menu1, ID_MENUITEM7, _("Auto-bind and convert"), wxEmptyString, wxITEM_NORMAL);
     Menu1->Append(MenuAutoBindControls);
     MenuRefresh = new wxMenuItem(Menu1, ID_MENUITEM3, _("Refresh\tF5"), wxEmptyString, wxITEM_NORMAL);
@@ -938,6 +1085,7 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
     Connect(ID_MENUITEM1,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuEditConfig);
     Connect(ID_MENUITEM2,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuEditFpsConfig);
     Connect(ID_MENUITEM8,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuOpenConfigDirectory);
+    Connect(ID_MENUITEM11,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuOpenMacroDirectory);
     Connect(ID_MENUITEM7,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuAutoBindControls);
     Connect(ID_MENUITEM3,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuRefresh);
     Connect(ID_MENUITEM9,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&launcherFrame::OnMenuSave);
@@ -991,7 +1139,7 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
       }
     }
 
-    //create config/ directory if absent
+    //create gimx/ directory if absent
     if(!wxDir::Exists(gimxDir))
     {
       if(!wxMkdir(gimxDir))
@@ -1000,6 +1148,7 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
         exit(-1);
       }
     }
+    //create config/ directory if absent
     gimxConfigDir = gimxDir + wxT(CONFIG_DIR);
     if(!wxDir::Exists(gimxConfigDir))
     {
@@ -1009,12 +1158,23 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
         exit(-1);
       }
     }
+    //create log/ directory if absent
     gimxLogDir = gimxDir + wxT(LOG_DIR);
     if(!wxDir::Exists(gimxLogDir))
     {
       if(!wxMkdir(gimxLogDir))
       {
         wxMessageBox( _("Can't init directory: ") + gimxLogDir, _("Error"), wxICON_ERROR);
+        exit(-1);
+      }
+    }
+    //create macros/ directory if absent
+    gimxMacrosDir = gimxDir + wxT(MACRO_DIR);
+    if(!wxDir::Exists(gimxMacrosDir))
+    {
+      if(!wxMkdir(gimxMacrosDir))
+      {
+        wxMessageBox( _("Can't init directory: ") + gimxMacrosDir, _("Error"), wxICON_ERROR);
         exit(-1);
       }
     }
@@ -1032,18 +1192,28 @@ launcherFrame::launcherFrame(wxWindow* parent,wxWindowID id __attribute__((unuse
     Output->Append(_("Bluetooth / PS4"));
 #endif
 
+    SetupManager().run();
+
+    autoConfig();
+
     readParam(OUTPUT_FILE, Output);
     readParam(INPUT_FILE, Input);
+    readParam(GRAB_CHOICE_FILE, MouseGrabChoice);
 
     wxCommandEvent event;
     OnOutputSelect(event);
     OnInputSelect(event);
 
+#ifdef DOWNLOAD_URL
     readStartUpdates();
     if(MenuStartupUpdates->IsChecked())
     {
       OnMenuUpdate(event);
     }
+#else
+    MenuStartupUpdates->Enable(false);
+    MenuUpdate->Enable(false);
+#endif
 
     started = true;
 
@@ -1111,10 +1281,28 @@ void MyProcess::OnTerminate(int pid __attribute__((unused)), int status)
 void launcherFrame::readDebugStrings(wxArrayString & values)
 {
     wxArrayString choices;
-    choices.Add(wxT("adapter"));
-    choices.Add(wxT("ff_conv"));
-    choices.Add(wxT("ff_lg"));
-    wxMultiChoiceDialog dialog(this, _("Select the files to debug:"), _(""), choices);
+
+    wxArrayString output, errors;
+    if(!wxExecute(wxT("gimx -z"), output, errors, wxEXEC_SYNC))
+    {
+      for(unsigned int j=1; j<output.GetCount(); ++j)
+      {
+        choices.Add(output[j]);
+      }
+    }
+    else
+    {
+      wxMessageBox( _("Failed to read debug flags!"), _("Error"), wxICON_ERROR);
+      return;
+    }
+
+    if (choices.GetCount() == 0)
+    {
+      wxMessageBox( _("No debug flag found!"), _("Error"), wxICON_ERROR);
+      return;
+    }
+
+    wxMultiChoiceDialog dialog(this, _("Select the debug flags:"), wxT(""), choices);
 
     if (dialog.ShowModal() == wxID_OK)
     {
@@ -1244,7 +1432,7 @@ void launcherFrame::OnButtonStartClick(wxCommandEvent& event __attribute__((unus
           return;
         }
 
-        wxString stopService = wxT("gksudo --message \"stop bluetooth service\" -- bash -c \"service bluetooth stop\"");
+        wxString stopService = wxT("systemctl stop bluetooth");
 
         if(wxExecute(stopService, wxEXEC_SYNC))
         {
@@ -1290,7 +1478,7 @@ void launcherFrame::OnButtonStartClick(wxCommandEvent& event __attribute__((unus
       wxArrayString destination;
       destination.Add(_("text"));
       destination.Add(_("log file"));
-      wxSingleChoiceDialog dialog(this, _("Select the destination:"), _(""), destination);
+      wxSingleChoiceDialog dialog(this, _("Select the destination:"), wxT(""), destination);
       if (dialog.ShowModal() == wxID_OK)
       {
         wxString selection = dialog.GetStringSelection();
@@ -1328,9 +1516,13 @@ void launcherFrame::OnButtonStartClick(wxCommandEvent& event __attribute__((unus
         command.Append(wxT(" --window-events"));
       }
 
-      if(!CheckBoxGrab->IsChecked())
+      if(MouseGrabChoice->GetStringSelection() == _("off"))
       {
           command.Append(wxT(" --nograb"));
+      }
+      else if(MouseGrabChoice->GetStringSelection() == _("auto"))
+      {
+          command.Append(wxT(" --auto-grab"));
       }
       command.Append(wxT(" --config \""));
       command.Append(InputChoice->GetStringSelection());
@@ -1406,6 +1598,8 @@ typedef enum {
 
     E_GIMX_STATUS_ADAPTER_NOT_DETECTED = -2, // wiring issue, incorrect firmware, target not powered
     E_GIMX_STATUS_NO_ACTIVATION = -3, // user did not activate the controller
+    E_GIMX_STATUS_INACTIVITY_TIMEOUT = -4, // no user input during defined time
+    E_GIMX_STATUS_AUTH_CONTROLLER_ERROR = -5, // connection issue with the authentication controller
 
     E_GIMX_STATUS_AUTH_MISSING_X360 = 1, // auth source missing
     E_GIMX_STATUS_AUTH_MISSING_PS4 = 2, // auth source missing
@@ -1467,7 +1661,7 @@ void launcherFrame::OnProcessTerminated(wxProcess *process __attribute__((unused
                   " . make sure to power on the target console\n"
                   "If you built the adapter yourself:\n"
                   " . make sure the wiring is correct (swapping RX and TX is a common mistake)\n"
-                  " . make sure it runs the right firmware"	
+                  " . make sure it runs the right firmware"
                   ), _("Error"), wxICON_ERROR);
         }
         else if(Output->GetStringSelection() == _("Remote GIMX"))
@@ -1484,6 +1678,9 @@ void launcherFrame::OnProcessTerminated(wxProcess *process __attribute__((unused
     case E_GIMX_STATUS_NO_ACTIVATION:
         wxMessageBox( _("GIMX exited and the activation button was not pressed."), _("Info"), wxICON_INFORMATION);
         break;
+    case E_GIMX_STATUS_INACTIVITY_TIMEOUT:
+        wxMessageBox( _("Inactivity timeout."), _("Error"), wxICON_ERROR);
+        break;
     case E_GIMX_STATUS_AUTH_MISSING_X360:
         wxMessageBox( _("No wired Xbox 360 controller was found on USB ports."), _("Error"), wxICON_ERROR);
         break;
@@ -1492,6 +1689,12 @@ void launcherFrame::OnProcessTerminated(wxProcess *process __attribute__((unused
         break;
     case E_GIMX_STATUS_AUTH_MISSING_XONE:
         wxMessageBox( _("No Xbox One controller (without 3.5mm jack) was found on USB ports."), _("Error"), wxICON_ERROR);
+        break;
+    case E_GIMX_STATUS_AUTH_CONTROLLER_ERROR:
+        wxMessageBox( _("There was a connection error with the official controller:\n"
+                ". make sure the cable wasn't pulled\n"
+                ". make sure the cable is not bad (try another one)\n"
+                ". make sure to turn controller off before connection."), _("Error"), wxICON_ERROR);
         break;
     }
 
@@ -1541,11 +1744,8 @@ void launcherFrame::OnButtonCheckClick1(wxCommandEvent& event __attribute__((unu
       return;
     }
 
-    string file = string(gimxConfigDir.mb_str(wxConvUTF8));
-    file.append(InputChoice->GetStringSelection().mb_str(wxConvUTF8));
-
     ConfigurationFile configFile;
-    int ret = configFile.ReadConfigFile(file);
+    int ret = configFile.ReadConfigFile(TO_STRING(gimxConfigDir), TO_STRING(InputChoice->GetStringSelection()));
 
     if(ret < 0)
     {
@@ -1563,39 +1763,35 @@ void launcherFrame::OnButtonCheckClick1(wxCommandEvent& event __attribute__((unu
 
 void launcherFrame::OnMenuEditConfig(wxCommandEvent& event __attribute__((unused)))
 {
-  if(InputChoice->GetStringSelection().IsEmpty())
-  {
-    wxMessageBox( _("No config selected!"), _("Error"), wxICON_ERROR);
-    return;
-  }
+  wxString command = wxT("gimx-config");
 
-  wxString command = wxT("gimx-config -f \"");
-  command.Append(InputChoice->GetStringSelection());
-  command.Append(wxT("\""));
+  if(!InputChoice->GetStringSelection().IsEmpty())
+  {
+    command.Append(wxT(" -f \""));
+    command.Append(InputChoice->GetStringSelection());
+    command.Append(wxT("\""));
+  }
 
   if (!wxExecute(command, wxEXEC_ASYNC))
   {
-    wxMessageBox(_("Error editing the config file!"), _("Error"),
-        wxICON_ERROR);
+    wxMessageBox(_("Failed to start gimx-config!"), _("Error"), wxICON_ERROR);
   }
 }
 
 void launcherFrame::OnMenuEditFpsConfig(wxCommandEvent& event __attribute__((unused)))
 {
-  if(InputChoice->GetStringSelection().IsEmpty())
-  {
-    wxMessageBox( _("No config selected!"), _("Error"), wxICON_ERROR);
-    return;
-  }
+  wxString command = wxT("gimx-fpsconfig");
 
-  wxString command = wxT("gimx-fpsconfig -f \"");
-  command.Append(InputChoice->GetStringSelection());
-  command.Append(wxT("\""));
+  if(!InputChoice->GetStringSelection().IsEmpty())
+  {
+    command.Append(wxT(" -f \""));
+    command.Append(InputChoice->GetStringSelection());
+    command.Append(wxT("\""));
+  }
 
   if (!wxExecute(command, wxEXEC_ASYNC))
   {
-    wxMessageBox(_("Error editing the config file!"), _("Error"),
-        wxICON_ERROR);
+    wxMessageBox(_("Failed to start gimx-fpsconfig!"), _("Error"), wxICON_ERROR);
   }
 }
 
@@ -1729,35 +1925,77 @@ void launcherFrame::OnOutputSelect(wxCommandEvent& event __attribute__((unused))
     refreshGui();
 }
 
-static int progress_callback(void *clientp, string & file, unsigned int dlnow, unsigned int dltotal)
+int launcherFrame::OnUpdateProgress(Updater::UpdaterStatus status, double progress, double total)
 {
-    ((launcherFrame *) clientp)->OnUpdateProgress(file, dlnow, dltotal);
+    wxString message;
+    switch (status) {
+    case Updater::UpdaterStatusConnectionPending:
+        message = _("Connecting");
+        break;
+    case Updater::UpdaterStatusDownloadInProgress:
+        message = _("Progress: ");
+        message.Append(wxString(Updater::getProgress(progress, total).c_str(), wxConvUTF8));
+        break;
+    case Updater::UpdaterStatusInstallPending:
+        message = _("Installing");
+        break;
+    default:
+        break;
+    }
+
+    if (status >= 0) {
+        if (progressDialog->Update(progress, message) == false) {
+            return 1;
+        }
+    } else {
+        return 1;
+    }
+
     return 0;
 }
 
-void launcherFrame::OnUpdateProgress(string & file, unsigned int dlnow, unsigned int dltotal)
+int launcherFrame::OnUpdateProgress(configupdater::ConfigUpdaterStatus status, double progress, double total)
 {
-    if (dltotal == 0 || dlnow == dltotal)
-    {
-        return;
+    wxString message;
+    switch (status) {
+    case configupdater::ConfigUpdaterStatusConnectionPending:
+        message = _("Connecting");
+        break;
+    case configupdater::ConfigUpdaterStatusDownloadInProgress:
+        message = _("Progress: ");
+        message.Append(wxString(Updater::getProgress(progress, total).c_str(), wxConvUTF8));
+        break;
+    default:
+        break;
     }
-    ostringstream ios;
-    if (!file.empty())
-    {
-        ios << file << ": ";
+
+    if (status >= 0) {
+        if (progressDialog->Update(progress, message) == false) {
+            return 1;
+        }
+    } else {
+        return 1;
     }
-    ios << (int)(dlnow / 1024) << " / " << (int)(dltotal / 1024) << " KB";
-    progressDialog->Update(dlnow * 100 / dltotal, wxString(ios.str().c_str(), wxConvUTF8));
+
+    return 0;
+}
+
+void launcherFrame::initDownload(wxProgressDialog * dlg)
+{
+    progressDialog = dlg;
+}
+
+void launcherFrame::cleanDownload()
+{
+    progressDialog = NULL;
 }
 
 void launcherFrame::OnMenuUpdate(wxCommandEvent& event __attribute__((unused)))
 {
+#ifdef DOWNLOAD_URL
   int ret;
 
-  updater* u = updater::getInstance();
-  u->SetParams(VERSION_URL, VERSION_FILE, INFO_VERSION, DOWNLOAD_URL, DOWNLOAD_FILE);
-
-  ret = u->CheckVersion();
+  ret = Updater().checkVersion(VERSION_URL, INFO_VERSION);
 
   if (ret > 0)
   {
@@ -1766,17 +2004,20 @@ void launcherFrame::OnMenuUpdate(wxCommandEvent& event __attribute__((unused)))
     {
      return;
     }
-    wxProgressDialog dlg(_("Downloading"), wxEmptyString);
-    progressDialog = &dlg;
-    int uret = u->Update(progress_callback, this);
-    progressDialog = NULL;
-    if (uret < 0)
+    wxProgressDialog dlg(_("Downloading update"), _("Connecting"), 100, NULL, wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_CAN_ABORT | wxPD_REMAINING_TIME | wxPD_SMOOTH);
+    initDownload(&dlg);
+    Updater::UpdaterStatus status = Updater().update(DOWNLOAD_URL, progress_callback_updater, this, false);
+    cleanDownload();
+    if (status != Updater::UpdaterStatusCancelled)
     {
-      wxMessageBox(_("Can't retrieve update file!"), _("Error"), wxICON_ERROR);
-    }
-    else
-    {
-      exit(0);
+      if (status < Updater::UpdaterStatusOk)
+      {
+        wxMessageBox(_("Can't retrieve update file!"), _("Error"), wxICON_ERROR);
+      }
+      else
+      {
+        exit(0);
+      }
     }
   }
   else if (ret < 0)
@@ -1787,6 +2028,7 @@ void launcherFrame::OnMenuUpdate(wxCommandEvent& event __attribute__((unused)))
   {
     wxMessageBox(_("GIMX is up-to-date!"), _("Info"), wxICON_INFORMATION);
   }
+#endif
 }
 
 void launcherFrame::OnMenuStartupUpdates(wxCommandEvent& event __attribute__((unused)))
@@ -1812,24 +2054,27 @@ void launcherFrame::OnMenuGetConfigs(wxCommandEvent& event __attribute__((unused
 {
   string dir = string(gimxConfigDir.mb_str(wxConvUTF8));
 
-  configupdater* u = configupdater::getInstance();
-  u->setconfigdirectory(dir);
-
-  list<string>* cl;
+  list<string> cl;
   list<string> cl_sel;
 
+  configupdater::ConfigUpdaterStatus status;
   {
-    wxProgressDialog dlg(_("Downloading"), wxEmptyString);
-    progressDialog = &dlg;
-    cl = u->getconfiglist(progress_callback, this);
-    progressDialog = NULL;
+    wxProgressDialog dlg(_("Downloading config list"), _("Connecting"), 100, NULL, wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_CAN_ABORT | wxPD_REMAINING_TIME | wxPD_SMOOTH);
+    initDownload(&dlg);
+    status = configupdater().getconfiglist(cl, progress_callback_configupdater, this);
+    cleanDownload();
   }
 
-  if(cl && !cl->empty())
+  if (status == configupdater::ConfigUpdaterStatusCancelled)
+  {
+    return;
+  }
+
+  if(!cl.empty())
   {
     wxArrayString choices;
 
-    for(list<string>::iterator it = cl->begin(); it != cl->end(); ++it)
+    for(list<string>::iterator it = cl.begin(); it != cl.end(); ++it)
     {
       choices.Add(wxString(it->c_str(), wxConvUTF8));
     }
@@ -1839,7 +2084,6 @@ void launcherFrame::OnMenuGetConfigs(wxCommandEvent& event __attribute__((unused
     if (dialog.ShowModal() == wxID_OK)
     {
       wxArrayInt selections = dialog.GetSelections();
-      wxArrayString configs;
 
       for ( size_t n = 0; n < selections.GetCount(); n++ )
       {
@@ -1854,39 +2098,46 @@ void launcherFrame::OnMenuGetConfigs(wxCommandEvent& event __attribute__((unused
           }
         }
         cl_sel.push_back(sel);
-        configs.Add(choices[selections[n]]);
-      }
-
-      {
-        wxProgressDialog dlg(_("Downloading"), wxEmptyString);
-        progressDialog = &dlg;
-        int uret = u->getconfigs(&cl_sel, progress_callback, this);
-        progressDialog = NULL;
-        if(uret < 0)
-        {
-          wxMessageBox(_("Can't retrieve configs!"), _("Error"), wxICON_ERROR);
-          return;
-        }
       }
 
       if(!cl_sel.empty())
-      {
-        wxMessageBox(_("Download is complete!"), _("Info"), wxICON_INFORMATION);
+	  {
+        wxProgressDialog dlg(_("Downloading"), _("Connecting"), 101, NULL, wxPD_APP_MODAL | wxPD_CAN_ABORT | wxPD_REMAINING_TIME | wxPD_SMOOTH);
+        initDownload(&dlg);
+        configupdater::ConfigUpdaterStatus status = configupdater::ConfigUpdaterStatusOk;
+        for (std::list<std::string>::iterator it = cl_sel.begin(); it != cl_sel.end(); ++it)
+        {
+          dlg.SetTitle(_("Downloading ") + wxString(it->c_str(), wxConvUTF8));
+          dlg.Update(0, _("Connecting"));
+          status = configupdater().getconfig(dir, *it, progress_callback_configupdater, this);
+          if (status == configupdater::ConfigUpdaterStatusCancelled)
+          {
+            break;
+          }
+        }
+        cleanDownload();
         readConfigs();
-        InputChoice->SetSelection(InputChoice->FindString(wxString(cl_sel.front().c_str(), wxConvUTF8)));
+        if (status == configupdater::ConfigUpdaterStatusOk)
+        {
+          dlg.Update(101, _("Completed"));
+          InputChoice->SetSelection(InputChoice->FindString(wxString(cl_sel.front().c_str(), wxConvUTF8)));
+        }
+        else if (status != configupdater::ConfigUpdaterStatusCancelled)
+        {
+          wxMessageBox(_("Can't retrieve configs!"), _("Error"), wxICON_ERROR);
+        }
       }
     }
   }
   else
   {
     wxMessageBox(_("Can't retrieve config list!"), _("Error"), wxICON_ERROR);
-    return;
   }
 }
 
 void launcherFrame::autoBindControls(wxArrayString configs)
 {
-  string dir = string(gimxConfigDir.mb_str(wxConvUTF8));
+  string dir = TO_STRING(gimxConfigDir);
 
   wxString mod_config;
 
@@ -1905,7 +2156,7 @@ void launcherFrame::autoBindControls(wxArrayString configs)
       ConfigurationFile configFile;
       mod_config = configs[j];
 
-      int ret = configFile.ReadConfigFile(dir + string(mod_config.mb_str(wxConvUTF8)));
+      int ret = configFile.ReadConfigFile(dir, TO_STRING(mod_config));
 
       if(ret < 0)
       {
@@ -1913,14 +2164,14 @@ void launcherFrame::autoBindControls(wxArrayString configs)
         return;
       }
 
-      if(configFile.AutoBind(dir + string(dialog.GetStringSelection().mb_str(wxConvUTF8))) < 0)
+      if(configFile.AutoBind(dir, TO_STRING(dialog.GetStringSelection())) < 0)
       {
         wxMessageBox(_("Can't auto-bind controls for config: ") + mod_config, _("Error"), wxICON_ERROR);
       }
       else
       {
-        configFile.ConvertSensitivity(dir + string(dialog.GetStringSelection().mb_str(wxConvUTF8)));
-        if(configFile.WriteConfigFile() < 0)
+        configFile.ConvertSensitivity(dir, TO_STRING(dialog.GetStringSelection()));
+        if(configFile.WriteConfigFile(dir, TO_STRING(mod_config)) < 0)
         {
           wxMessageBox(_("Can't write config: ") + mod_config, _("Error"), wxICON_ERROR);
         }
@@ -1954,6 +2205,16 @@ void launcherFrame::OnMenuOpenConfigDirectory(wxCommandEvent& event __attribute_
   wxExecute(wxT("explorer ") + gimxConfigDir, wxEXEC_ASYNC, NULL);
 #else
   wxExecute(wxT("xdg-open ") + gimxConfigDir, wxEXEC_ASYNC, NULL);
+#endif
+}
+
+void launcherFrame::OnMenuOpenMacroDirectory(wxCommandEvent& event __attribute__((unused)))
+{
+#ifdef WIN32
+  gimxMacrosDir.Replace(wxT("/"), wxT("\\"));
+  wxExecute(wxT("explorer ") + gimxMacrosDir, wxEXEC_ASYNC, NULL);
+#else
+  wxExecute(wxT("xdg-open ") + gimxMacrosDir, wxEXEC_ASYNC, NULL);
 #endif
 }
 
@@ -2475,6 +2736,8 @@ void launcherFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
     {
       saveChoices(IP_SOURCES, InputChoice);
     }
+
+    saveParam(GRAB_CHOICE_FILE, MouseGrabChoice->GetStringSelection());
 }
 
 void launcherFrame::readIp(wxChoice* choices)

@@ -12,6 +12,7 @@
 #include <math.h>
 #include <sstream>
 #include <iomanip>
+#include <climits>
 
 //(*InternalHeaders(configFrame)
 #include <wx/string.h>
@@ -26,7 +27,7 @@
 
 #include <algorithm>
 
-#include "../shared/updater/updater.h"
+#include <gimxupdater/Updater.h>
 #include "../directories.h"
 
 #include <wx/stdpaths.h>
@@ -36,6 +37,9 @@
 #include <wx/app.h>
 
 #define _CN(STRING) locale->GetString(wxString(STRING.c_str(), wxConvUTF8))
+
+#define TO_STRING(WXSTRING) string(WXSTRING.mb_str(wxConvUTF8))
+#define TO_WXSTRING(STRING) wxString(STRING.c_str(), wxConvUTF8)
 
 using namespace std;
 
@@ -116,7 +120,16 @@ const long configFrame::ID_STATICTEXT25 = wxNewId();
 const long configFrame::ID_STATICTEXT49 = wxNewId();
 const long configFrame::ID_BUTTON20 = wxNewId();
 const long configFrame::ID_STATICLINE13 = wxNewId();
+const long configFrame::ID_STATICTEXT31 = wxNewId();
+const long configFrame::ID_STATICTEXT50 = wxNewId();
+const long configFrame::ID_STATICTEXT29 = wxNewId();
+const long configFrame::ID_STATICTEXT33 = wxNewId();
+const long configFrame::ID_STATICTEXT48 = wxNewId();
 const long configFrame::ID_CHECKBOX2 = wxNewId();
+const long configFrame::ID_SPINCTRL4 = wxNewId();
+const long configFrame::ID_SPINCTRL3 = wxNewId();
+const long configFrame::ID_SPINCTRL2 = wxNewId();
+const long configFrame::ID_SPINCTRL1 = wxNewId();
 const long configFrame::ID_STATICLINE15 = wxNewId();
 const long configFrame::ID_BUTTON24 = wxNewId();
 const long configFrame::ID_PANEL8 = wxNewId();
@@ -553,13 +566,11 @@ void configFrame::readLabels()
   }
 
   wxString file;
-  wxString filepath;
   wxString filespec = wxT("*.xml");
 
   for (bool cont = dir.GetFirst(&file, filespec, wxDIR_FILES); cont;  cont = dir.GetNext(&file))
   {
-    filepath = default_directory + file;
-    ConfigurationFile::GetLabels(string(filepath.mb_str(wxConvUTF8)), button_labels, axis_labels);
+    ConfigurationFile::GetLabels(TO_STRING(default_directory), TO_STRING(file), button_labels, axis_labels);
   }
 
   button_labels.sort(compare_nocase);
@@ -981,10 +992,32 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     FlexGridSizer54->Add(ForceFeedbackAutoDetect, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     StaticLine13 = new wxStaticLine(PanelForceFeedback, ID_STATICLINE13, wxDefaultPosition, wxSize(-1,50), wxLI_VERTICAL, _T("ID_STATICLINE13"));
     FlexGridSizer54->Add(StaticLine13, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    FlexGridSizer56 = new wxFlexGridSizer(1, 1, 0, 0);
-    FFBTweaksInvert = new wxCheckBox(PanelForceFeedback, ID_CHECKBOX2, _("Invert direction"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX2"));
+    FlexGridSizer56 = new wxFlexGridSizer(2, 5, 0, 0);
+    StaticText4 = new wxStaticText(PanelForceFeedback, ID_STATICTEXT31, _("Invert direction"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT31"));
+    FlexGridSizer56->Add(StaticText4, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    StaticText5 = new wxStaticText(PanelForceFeedback, ID_STATICTEXT50, _("Rumble"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT50"));
+    FlexGridSizer56->Add(StaticText5, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    StaticText10 = new wxStaticText(PanelForceFeedback, ID_STATICTEXT29, _("Constant"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT29"));
+    FlexGridSizer56->Add(StaticText10, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    StaticText16 = new wxStaticText(PanelForceFeedback, ID_STATICTEXT33, _("Spring"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT33"));
+    FlexGridSizer56->Add(StaticText16, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    StaticText19 = new wxStaticText(PanelForceFeedback, ID_STATICTEXT48, _("Damper"), wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT48"));
+    FlexGridSizer56->Add(StaticText19, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FFBTweaksInvert = new wxCheckBox(PanelForceFeedback, ID_CHECKBOX2, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHECKBOX2"));
     FFBTweaksInvert->SetValue(false);
     FlexGridSizer56->Add(FFBTweaksInvert, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FFBTweaksRumbleGain = new wxSpinCtrl(PanelForceFeedback, ID_SPINCTRL4, _T("100"), wxDefaultPosition, wxSize(55,-1), 0, -1000, 1000, 100, _T("ID_SPINCTRL4"));
+    FFBTweaksRumbleGain->SetValue(_T("100"));
+    FlexGridSizer56->Add(FFBTweaksRumbleGain, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FFBTweaksConstantGain = new wxSpinCtrl(PanelForceFeedback, ID_SPINCTRL3, _T("100"), wxDefaultPosition, wxSize(55,-1), 0, -1000, 1000, 100, _T("ID_SPINCTRL3"));
+    FFBTweaksConstantGain->SetValue(_T("100"));
+    FlexGridSizer56->Add(FFBTweaksConstantGain, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FFBTweaksSpringGain = new wxSpinCtrl(PanelForceFeedback, ID_SPINCTRL2, _T("100"), wxDefaultPosition, wxSize(55,-1), 0, -1000, 1000, 100, _T("ID_SPINCTRL2"));
+    FFBTweaksSpringGain->SetValue(_T("100"));
+    FlexGridSizer56->Add(FFBTweaksSpringGain, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    FFBTweaksDamperGain = new wxSpinCtrl(PanelForceFeedback, ID_SPINCTRL1, _T("100"), wxDefaultPosition, wxSize(55,-1), 0, -1000, 1000, 100, _T("ID_SPINCTRL1"));
+    FFBTweaksDamperGain->SetValue(_T("100"));
+    FlexGridSizer56->Add(FFBTweaksDamperGain, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     FlexGridSizer54->Add(FlexGridSizer56, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     StaticLine15 = new wxStaticLine(PanelForceFeedback, ID_STATICLINE15, wxDefaultPosition, wxSize(-1,50), wxLI_VERTICAL, _T("ID_STATICLINE15"));
     FlexGridSizer54->Add(StaticLine15, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
@@ -1009,7 +1042,6 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     StaticBoxSizer3 = new wxStaticBoxSizer(wxHORIZONTAL, PanelButton, _("Device"));
     FlexGridSizer12 = new wxFlexGridSizer(1, 3, 0, 0);
     ButtonTabDeviceType = new wxStaticText(PanelButton, ID_STATICTEXT38, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT38"));
-    ButtonTabDeviceType->Hide();
     FlexGridSizer12->Add(ButtonTabDeviceType, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
     ButtonTabDeviceName = new wxStaticText(PanelButton, ID_STATICTEXT30, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, _T("ID_STATICTEXT30"));
     FlexGridSizer12->Add(ButtonTabDeviceName, 1, wxALL|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
@@ -1291,24 +1323,24 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     MenuItemGtfPs2 = new wxMenuItem(MenuType, ID_MENUITEMGTFPS2, _("GT Force PS2"), wxEmptyString, wxITEM_RADIO);
     MenuType->Append(MenuItemGtfPs2);
     MenuBar1->Append(MenuType, _("Type"));
-    MenuConfiguration = new wxMenu();
-    MenuConfiguration1 = new wxMenuItem(MenuConfiguration, ID_MENUITEM8, _("1"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration1);
-    MenuConfiguration2 = new wxMenuItem(MenuConfiguration, ID_MENUITEM9, _("2"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration2);
-    MenuConfiguration3 = new wxMenuItem(MenuConfiguration, ID_MENUITEM10, _("3"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration3);
-    MenuConfiguration4 = new wxMenuItem(MenuConfiguration, ID_MENUITEM11, _("4"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration4);
-    MenuConfiguration5 = new wxMenuItem(MenuConfiguration, ID_MENUITEM13, _("5"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration5);
-    MenuConfiguration6 = new wxMenuItem(MenuConfiguration, ID_MENUITEM14, _("6"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration6);
-    MenuConfiguration7 = new wxMenuItem(MenuConfiguration, ID_MENUITEM15, _("7"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration7);
-    MenuConfiguration8 = new wxMenuItem(MenuConfiguration, ID_MENUITEM16, _("8"), wxEmptyString, wxITEM_RADIO);
-    MenuConfiguration->Append(MenuConfiguration8);
-    MenuBar1->Append(MenuConfiguration, _("Profile"));
+    MenuProfile = new wxMenu();
+    MenuProfile1 = new wxMenuItem(MenuProfile, ID_MENUITEM8, _("1"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile1);
+    MenuProfile2 = new wxMenuItem(MenuProfile, ID_MENUITEM9, _("2"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile2);
+    MenuProfile3 = new wxMenuItem(MenuProfile, ID_MENUITEM10, _("3"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile3);
+    MenuProfile4 = new wxMenuItem(MenuProfile, ID_MENUITEM11, _("4"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile4);
+    MenuProfile5 = new wxMenuItem(MenuProfile, ID_MENUITEM13, _("5"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile5);
+    MenuProfile6 = new wxMenuItem(MenuProfile, ID_MENUITEM14, _("6"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile6);
+    MenuProfile7 = new wxMenuItem(MenuProfile, ID_MENUITEM15, _("7"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile7);
+    MenuProfile8 = new wxMenuItem(MenuProfile, ID_MENUITEM16, _("8"), wxEmptyString, wxITEM_RADIO);
+    MenuProfile->Append(MenuProfile8);
+    MenuBar1->Append(MenuProfile, _("Profile"));
     MenuAdvanced = new wxMenu();
     MenuItemMultipleMiceAndKeyboards = new wxMenuItem(MenuAdvanced, ID_MENUITEM24, _("Multiple Mice and Keyboards"), wxEmptyString, wxITEM_CHECK);
     MenuAdvanced->Append(MenuItemMultipleMiceAndKeyboards);
@@ -1316,7 +1348,6 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     MenuAdvanced->Append(MenuItemWindowEvents);
     MenuItemLinkControls = new wxMenuItem(MenuAdvanced, ID_MENUITEM25, _("Link controls"), wxEmptyString, wxITEM_CHECK);
     MenuAdvanced->Append(MenuItemLinkControls);
-    MenuItemLinkControls->Check(true);
     MenuAutoBindControls = new wxMenuItem(MenuAdvanced, ID_MENUITEM27, _("Auto-bind controls"), wxEmptyString, wxITEM_NORMAL);
     MenuAdvanced->Append(MenuAutoBindControls);
     MenuBar1->Append(MenuAdvanced, _("Advanced"));
@@ -1331,7 +1362,6 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
     StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
     SetStatusBar(StatusBar1);
-    FileDialog1 = new wxFileDialog(this, _("Select file"), wxEmptyString, wxEmptyString, _("XML files (*.xml)|*.xml"), wxFD_DEFAULT_STYLE|wxFD_OPEN, wxDefaultPosition, wxDefaultSize, _T("wxFileDialog"));
     GridSizer1->Fit(this);
     GridSizer1->SetSizeHints(this);
 
@@ -1420,6 +1450,7 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     Connect(ID_MENUITEM27,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&configFrame::OnMenuAutoBindControls);
     Connect(idMenuAbout,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&configFrame::OnAbout);
     //*)
+    Connect(wxEVT_CLOSE_WINDOW, wxCloseEventHandler(configFrame::OnClose), NULL, this);
 
     GridPanelButton->SetSelectionMode(wxGrid::wxGridSelectRows);
     GridPanelAxis->SetSelectionMode(wxGrid::wxGridSelectRows);
@@ -1427,7 +1458,7 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     GridMouseOption->SetSelectionMode(wxGrid::wxGridSelectRows);
 
     currentController = 0;
-    currentConfiguration = 0;
+    currentProfile = 0;
 
     LoadControllerType();
 
@@ -1477,7 +1508,7 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
       }
     }
 
-    FileDialog1->SetDirectory(default_directory);
+    configFile.SetDirectory(TO_STRING(default_directory));
 
     GridPanelButton->SetDefaultColSize(wxGRID_AUTOSIZE);
     GridPanelButton->SetRowLabelSize(20);
@@ -1493,45 +1524,10 @@ configFrame::configFrame(wxString file,wxWindow* parent, wxWindowID id __attribu
     GridIntensity->AutoSizeColumns();
     GridMouseOption->AutoSizeColumns();
 
-    evcatch = event_catcher::getInstance();
+    evcatch = EventCatcher::getInstance();
 
-	  /* Open the file given as argument */
-    if(!file.IsEmpty())
-    {
-      wxString wxfile = default_directory + file;
-
-      if(::wxFileExists(wxfile))
-      {
-        int ret = configFile.ReadConfigFile(string(wxfile.mb_str(wxConvUTF8)));
-
-        if(ret < 0)
-        {
-          wxMessageBox(wxString(configFile.GetError().c_str(), wxConvUTF8), _("Error"), wxICON_ERROR);
-        }
-        else if(ret > 0)
-        {
-          wxMessageBox(wxString(configFile.GetInfo().c_str(), wxConvUTF8), _("Info"), wxICON_INFORMATION);
-        }
-
-        MenuItemMultipleMiceAndKeyboards->Check(configFile.MultipleMK());
-        if(MenuItemMultipleMiceAndKeyboards->IsChecked())
-        {
-            MenuItemReplaceMouse->Enable(true);
-            MenuItemReplaceKeyboard->Enable(true);
-        }
-        else
-        {
-            MenuItemReplaceMouse->Enable(false);
-            MenuItemReplaceKeyboard->Enable(false);
-        }
-        load_current();
-        MenuFile->Enable(idMenuSave, true);
-        FileDialog1->SetFilename(file);
-      }
-      else
-      {
-        wxMessageBox( _("Cannot open config file: ") + file, _("Error"), wxICON_ERROR);
-      }
+    if (!file.IsEmpty()) {
+        openConfiguration(default_directory, file);
     }
 
     readLabels();
@@ -1554,6 +1550,32 @@ configFrame::~configFrame()
 {
     //(*Destroy(configFrame)
     //*)
+}
+
+void configFrame::checkSave()
+{
+    save_current();
+    if (!configFile.GetFile().empty()) {
+        if (!(openedConfigFile == configFile)) {
+            int answer = wxMessageBox(_("Do you want to save your configuration?"), TO_WXSTRING(configFile.GetFile()), wxYES_NO);
+            if (answer == wxYES) {
+                wxCommandEvent e;
+                OnMenuSave(e);
+            }
+        }
+    } else if (!configFile.IsEmpty()) {
+        int answer = wxMessageBox(_("Do you want to save your configuration?"), wxEmptyString, wxYES_NO);
+        if (answer == wxYES) {
+            wxCommandEvent e;
+            OnMenuSaveAs(e);
+        }
+    }
+}
+
+void configFrame::OnClose(wxCloseEvent& event)
+{
+    checkSave();
+    event.Skip();
 }
 
 void configFrame::OnQuit(wxCommandEvent& event __attribute__((unused)))
@@ -1581,13 +1603,18 @@ void configFrame::OnAbout(wxCommandEvent& event __attribute__((unused)))
  */
 void configFrame::OnMenuItemNew(wxCommandEvent& event __attribute__((unused)))
 {
-    FileDialog1->SetFilename(wxEmptyString);
+    checkSave();
+
+    wxTopLevelWindow::SetTitle(wxT("Gimx-config"));
     configFile = ConfigurationFile();
+    configFile.SetDirectory(TO_STRING(default_directory));
+    configFile.SetFile("");
+    openedConfigFile = ConfigurationFile();
 
     currentController = 0;
-    currentConfiguration = 0;
+    currentProfile = 0;
     MenuController->Check(ID_MENUITEM1, true);
-    MenuConfiguration->Check(ID_MENUITEM8, true);
+    MenuProfile->Check(ID_MENUITEM8, true);
     load_current();
     MenuFile->Enable(idMenuSave, false);
     reset_buttons();
@@ -1700,14 +1727,14 @@ void configFrame::DeleteLinkedRows(wxGrid* grid, int row)
     string old_event_id = string(GridPanelButton->GetCellValue(row, 4).mb_str(wxConvUTF8));
     string old_button_id = string(GridPanelButton->GetCellValue(row, 6).mb_str(wxConvUTF8));
 
-    for(unsigned int k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(unsigned int k=0; k<MAX_PROFILES; ++k)
     {
-      if(k == currentConfiguration)
+      if(k == currentProfile)
       {
         continue;
       }
 
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       std::list<ControlMapper>* buttonMappers = config->GetButtonMapperList();
       for(std::list<ControlMapper>::iterator it = buttonMappers->begin(); it!=buttonMappers->end(); )
@@ -1737,14 +1764,14 @@ void configFrame::DeleteLinkedRows(wxGrid* grid, int row)
     string old_event_id = string(GridPanelAxis->GetCellValue(row, 4).mb_str(wxConvUTF8));
     string old_axis_id = string(GridPanelAxis->GetCellValue(row, 5).mb_str(wxConvUTF8));
 
-    for(unsigned int k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(unsigned int k=0; k<MAX_PROFILES; ++k)
     {
-      if(k == currentConfiguration)
+      if(k == currentProfile)
       {
         continue;
       }
 
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       std::list<ControlMapper>* axisMappers = config->GetAxisMapperList();
       for(std::list<ControlMapper>::iterator it = axisMappers->begin(); it!=axisMappers->end(); )
@@ -1775,14 +1802,14 @@ void configFrame::DeleteLinkedRows(wxGrid* grid, int row)
 
     Controller* controller = configFile.GetController(currentController);
 
-    for(unsigned int k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(unsigned int k=0; k<MAX_PROFILES; ++k)
     {
-      if(k == currentConfiguration)
+      if(k == currentProfile)
       {
         continue;
       }
 
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       std::list<Intensity>* intensities = config->GetIntensityList();
       for(std::list<Intensity>::iterator it = intensities->begin(); it!=intensities->end(); )
@@ -1993,6 +2020,7 @@ void configFrame::auto_detect(wxStaticText* device_type, string* dname, wxStatic
     }
     else
     {
+      dname->clear();
       device_name->UnsetToolTip();
       device_name->SetLabel(wxEmptyString);
       device_id->SetLabel(wxT("0"));
@@ -2024,9 +2052,9 @@ void configFrame::OnButtonAutoDetectClick(wxCommandEvent& event __attribute__((u
 
       Controller* controller = configFile.GetController(currentController);
 
-      for(k=0; k<MAX_CONFIGURATIONS; ++k)
+      for(k=0; k<MAX_PROFILES; ++k)
       {
-        Configuration* config = controller->GetConfiguration(k);
+        Profile* config = controller->GetProfile(k);
 
         dev = config->GetTrigger()->GetDevice();
         ev = config->GetTrigger()->GetEvent();
@@ -2081,7 +2109,6 @@ void configFrame::OnButtonTabAutoDetectClick(wxCommandEvent& event __attribute__
 
     ButtonTabAutoDetect->Enable(true);
 }
-
 void configFrame::addJoystickCorrection()
 {
     if (AxisTabAxisId->GetStringSelection() == wxT("gas")
@@ -2232,17 +2259,17 @@ void configFrame::save_current()
     std::list<JoystickCorrection>* joystickCorrectionsList;
 
     Controller* controller = configFile.GetController(currentController);
-    Configuration* configuration = controller->GetConfiguration(currentConfiguration);
+    Profile* profile = controller->GetProfile(currentProfile);
 
     //Save Trigger
-    configuration->GetTrigger()->GetDevice()->SetType(reverseTranslate(string(ProfileTriggerDeviceType->GetLabel().mb_str(wxConvUTF8))));
-    configuration->GetTrigger()->GetDevice()->SetName(triggerTabDeviceName);
-    configuration->GetTrigger()->GetDevice()->SetId(string(ProfileTriggerDeviceId->GetLabel().mb_str(wxConvUTF8)));
-    configuration->GetTrigger()->GetEvent()->SetId(string(ProfileTriggerButtonId->GetLabel().mb_str(wxConvUTF8)));
-    configuration->GetTrigger()->SetSwitchBack(string(CheckBoxSwitchBack->GetValue()?"yes":"no"));
-    configuration->GetTrigger()->SetDelay(ProfileTriggerDelay->GetValue());
+    profile->GetTrigger()->GetDevice()->SetType(reverseTranslate(string(ProfileTriggerDeviceType->GetLabel().mb_str(wxConvUTF8))));
+    profile->GetTrigger()->GetDevice()->SetName(triggerTabDeviceName);
+    profile->GetTrigger()->GetDevice()->SetId(string(ProfileTriggerDeviceId->GetLabel().mb_str(wxConvUTF8)));
+    profile->GetTrigger()->GetEvent()->SetId(string(ProfileTriggerButtonId->GetLabel().mb_str(wxConvUTF8)));
+    profile->GetTrigger()->SetSwitchBack(string(CheckBoxSwitchBack->GetValue()?"yes":"no"));
+    profile->GetTrigger()->SetDelay(ProfileTriggerDelay->GetValue());
     //Save MouseOptions
-    mouseOptionsList = configuration->GetMouseOptionsList();
+    mouseOptionsList = profile->GetMouseOptionsList();
     mouseOptionsList->erase(mouseOptionsList->begin(), mouseOptionsList->end());
     for(int i=0; i<GridMouseOption->GetNumberRows(); i++)
     {
@@ -2255,7 +2282,7 @@ void configFrame::save_current()
               string(GridMouseOption->GetCellValue(i, 4).mb_str(wxConvUTF8))));
     }
     //Save axis Intensity
-    intensityList = configuration->GetIntensityList();
+    intensityList = profile->GetIntensityList();
     intensityList->erase(intensityList->begin(), intensityList->end());
     for(int i=0; i<GridIntensity->GetNumberRows(); i++)
     {
@@ -2267,12 +2294,12 @@ void configFrame::save_current()
               string(GridIntensity->GetCellValue(i, 3).mb_str(wxConvUTF8)),
               string(GridIntensity->GetCellValue(i, 4).mb_str(wxConvUTF8)),
               reverseTranslate(string(GridIntensity->GetCellValue(i, 5).mb_str(wxConvUTF8))),
-              wxAtoi(GridIntensity->GetCellValue(i, 6)),
+              string(GridIntensity->GetCellValue(i, 6).mb_str(wxConvUTF8)),
               reverseTranslate(string(GridIntensity->GetCellValue(i, 7).mb_str(wxConvUTF8))),
-              wxAtoi(GridIntensity->GetCellValue(i, 8))));
+              string(GridIntensity->GetCellValue(i, 8).mb_str(wxConvUTF8))));
     }
     //Save Joystick Corrections
-    joystickCorrectionsList = configuration->GetJoystickCorrectionsList();
+    joystickCorrectionsList = profile->GetJoystickCorrectionsList();
     joystickCorrectionsList->erase(joystickCorrectionsList->begin(), joystickCorrectionsList->end());
     for(int i=0; i<GridJoystickCorrections->GetNumberRows(); i++)
     {
@@ -2287,12 +2314,24 @@ void configFrame::save_current()
               string(GridJoystickCorrections->GetCellValue(i, 6).mb_str(wxConvUTF8))));
     }
     //Save FFB tweaks
-    configuration->GetForceFeedback()->GetJoystick()->SetType(reverseTranslate(string(FFBTweaksType->GetLabel().mb_str(wxConvUTF8))));
-    configuration->GetForceFeedback()->GetJoystick()->SetName(ffbTweaksTabDeviceName);
-    configuration->GetForceFeedback()->GetJoystick()->SetId(string(FFBTweaksId->GetLabel().mb_str(wxConvUTF8)));
-    configuration->GetForceFeedback()->setInversion(FFBTweaksInvert->GetValue() ? "yes" : "no");
+    profile->GetForceFeedback()->GetJoystick()->SetType(reverseTranslate(string(FFBTweaksType->GetLabel().mb_str(wxConvUTF8))));
+    profile->GetForceFeedback()->GetJoystick()->SetName(ffbTweaksTabDeviceName);
+    profile->GetForceFeedback()->GetJoystick()->SetId(string(FFBTweaksId->GetLabel().mb_str(wxConvUTF8)));
+    profile->GetForceFeedback()->setInversion(FFBTweaksInvert->GetValue() ? "yes" : "no");
+    wxString rumble;
+    rumble << FFBTweaksRumbleGain->GetValue();
+    profile->GetForceFeedback()->setRumbleGain(string(rumble.mb_str(wxConvUTF8)));
+    wxString constant;
+    constant << FFBTweaksConstantGain->GetValue();
+    profile->GetForceFeedback()->setConstantGain(string(constant.mb_str(wxConvUTF8)));
+    wxString spring;
+    spring << FFBTweaksSpringGain->GetValue();
+    profile->GetForceFeedback()->setSpringGain(string(spring.mb_str(wxConvUTF8)));
+    wxString damper;
+    damper << FFBTweaksDamperGain->GetValue();
+    profile->GetForceFeedback()->setDamperGain(string(damper.mb_str(wxConvUTF8)));
     //Save ControlMappers
-    buttonMappers = configuration->GetButtonMapperList();
+    buttonMappers = profile->GetButtonMapperList();
     buttonMappers->erase(buttonMappers->begin(), buttonMappers->end());
     for(int i=0; i<GridPanelButton->GetNumberRows(); i++)
     {
@@ -2308,7 +2347,7 @@ void configFrame::save_current()
               string(GridPanelButton->GetCellValue(i, 7).mb_str(wxConvUTF8))));
     }
     //Save axisMappers
-    axisMappers = configuration->GetAxisMapperList();
+    axisMappers = profile->GetAxisMapperList();
     axisMappers->erase(axisMappers->begin(), axisMappers->end());
     for(int i=0; i<GridPanelAxis->GetNumberRows(); i++)
     {
@@ -2403,14 +2442,14 @@ void configFrame::load_current()
     std::list<JoystickCorrection>* joystickCorrectionsList;
 
     Controller* controller = configFile.GetController(currentController);
-    Configuration* configuration = controller->GetConfiguration(currentConfiguration);
+    Profile* profile = controller->GetProfile(currentProfile);
 
     //Set controller type
     LoadControllerType();
 
     //Load Trigger
-    ProfileTriggerDeviceType->SetLabel(_CN(configuration->GetTrigger()->GetDevice()->GetType()));
-    triggerTabDeviceName = configuration->GetTrigger()->GetDevice()->GetName();
+    ProfileTriggerDeviceType->SetLabel(_CN(profile->GetTrigger()->GetDevice()->GetType()));
+    triggerTabDeviceName = profile->GetTrigger()->GetDevice()->GetName();
     string name = triggerTabDeviceName;
     if(name.size() > 20)
     {
@@ -2418,9 +2457,9 @@ void configFrame::load_current()
       name.append("...");
     }
     ProfileTriggerDeviceName->SetLabel(wxString(name.c_str(),wxConvUTF8));
-    ProfileTriggerDeviceId->SetLabel(wxString(configuration->GetTrigger()->GetDevice()->GetId().c_str(),wxConvUTF8));
-    ProfileTriggerButtonId->SetLabel(wxString(configuration->GetTrigger()->GetEvent()->GetId().c_str(),wxConvUTF8));
-    if(configuration->GetTrigger()->GetSwitchBack() == "yes")
+    ProfileTriggerDeviceId->SetLabel(wxString(profile->GetTrigger()->GetDevice()->GetId().c_str(),wxConvUTF8));
+    ProfileTriggerButtonId->SetLabel(wxString(profile->GetTrigger()->GetEvent()->GetId().c_str(),wxConvUTF8));
+    if(profile->GetTrigger()->GetSwitchBack() == "yes")
     {
         CheckBoxSwitchBack->SetValue(true);
     }
@@ -2428,10 +2467,10 @@ void configFrame::load_current()
     {
         CheckBoxSwitchBack->SetValue(false);
     }
-    ProfileTriggerDelay->SetValue(configuration->GetTrigger()->GetDelay());
+    ProfileTriggerDelay->SetValue(profile->GetTrigger()->GetDelay());
     //Load mouse options
     clearGrid(GridMouseOption);
-    mouseOptionsList = configuration->GetMouseOptionsList();
+    mouseOptionsList = profile->GetMouseOptionsList();
     for(std::list<MouseOptions>::iterator it = mouseOptionsList->begin(); it!=mouseOptionsList->end(); ++it)
     {
       GridMouseOption->InsertRows();
@@ -2444,7 +2483,7 @@ void configFrame::load_current()
     GridMouseOption->AutoSizeColumns();
     //Load axis intensities
     clearGrid(GridIntensity);
-    intensityList = configuration->GetIntensityList();
+    intensityList = profile->GetIntensityList();
     for(std::list<Intensity>::iterator it = intensityList->begin(); it!=intensityList->end(); ++it)
     {
       string name = it->GetSpecificAxisName(controller->GetControllerType());
@@ -2477,18 +2516,14 @@ void configFrame::load_current()
       GridIntensity->SetCellValue(0, 3, wxString(it->GetDevice()->GetId().c_str(),wxConvUTF8));
       GridIntensity->SetCellValue(0, 4, wxString(it->GetEvent()->GetId().c_str(),wxConvUTF8));
       GridIntensity->SetCellValue(0, 5, _CN(it->GetDirection()));
-      wxString dz;
-      dz << it->GetDeadZone();
-      GridIntensity->SetCellValue(0, 6, dz);
+      GridIntensity->SetCellValue(0, 6, wxString(it->GetDeadZone().c_str(),wxConvUTF8));
       GridIntensity->SetCellValue(0, 7, _CN(it->GetShape()));
-      wxString steps;
-      steps << it->GetSteps();
-      GridIntensity->SetCellValue(0, 8, steps);
+      GridIntensity->SetCellValue(0, 8, wxString(it->GetSteps().c_str(),wxConvUTF8));
     }
     GridIntensity->AutoSizeColumns();
     //Load joystick corrections
     clearGrid(GridJoystickCorrections);
-    joystickCorrectionsList = configuration->GetJoystickCorrectionsList();
+    joystickCorrectionsList = profile->GetJoystickCorrectionsList();
     for(std::list<JoystickCorrection>::iterator it = joystickCorrectionsList->begin(); it!=joystickCorrectionsList->end(); ++it)
     {
       GridJoystickCorrections->InsertRows();
@@ -2502,7 +2537,7 @@ void configFrame::load_current()
     }
     GridJoystickCorrections->AutoSizeColumns();
     //Load Force Feedback Tweaks
-    ForceFeedback * tweaks = configuration->GetForceFeedback();
+    ForceFeedback * tweaks = profile->GetForceFeedback();
     FFBTweaksType->SetLabel(_CN(tweaks->GetJoystick()->GetType()));
     ffbTweaksTabDeviceName = tweaks->GetJoystick()->GetName();
     name = ffbTweaksTabDeviceName;
@@ -2514,9 +2549,13 @@ void configFrame::load_current()
     FFBTweaksName->SetLabel(wxString(name.c_str(),wxConvUTF8));
     FFBTweaksId->SetLabel(wxString(tweaks->GetJoystick()->GetId().c_str(),wxConvUTF8));
     FFBTweaksInvert->SetValue(tweaks->getInversion() == "yes");
+    FFBTweaksRumbleGain->SetValue(wxString(tweaks->getRumbleGain().c_str(),wxConvUTF8));
+    FFBTweaksConstantGain->SetValue(wxString(tweaks->getConstantGain().c_str(),wxConvUTF8));
+    FFBTweaksSpringGain->SetValue(wxString(tweaks->getSpringGain().c_str(),wxConvUTF8));
+    FFBTweaksDamperGain->SetValue(wxString(tweaks->getDamperGain().c_str(),wxConvUTF8));
     //Load buttonMappers
     clearGrid(GridPanelButton);
-    buttonMappers = configuration->GetButtonMapperList();
+    buttonMappers = profile->GetButtonMapperList();
     for(std::list<ControlMapper>::iterator it = buttonMappers->begin(); it!=buttonMappers->end(); ++it)
     {
       string name = it->GetSpecificAxisName(controller->GetControllerType());
@@ -2569,7 +2608,7 @@ void configFrame::load_current()
     GridPanelButton->AutoSizeColumns();
     //Load axisMappers
     clearGrid(GridPanelAxis);
-    axisMappers = configuration->GetAxisMapperList();
+    axisMappers = profile->GetAxisMapperList();
     for(std::list<ControlMapper>::iterator it = axisMappers->begin(); it!=axisMappers->end(); ++it)
     {
       string name = it->GetSpecificAxisName(controller->GetControllerType());
@@ -2632,50 +2671,61 @@ void configFrame::refresh_gui()
     Refresh();
 }
 
-/*
- * \brief Method called on File>Open click.
- */
-void configFrame::OnMenuOpen(wxCommandEvent& event __attribute__((unused)))
+void configFrame::openConfiguration(const wxString& directory, const wxString& file)
 {
-    int ret;
-
-    if ( FileDialog1->ShowModal() != wxID_OK ) return;
-
-    wxString FileName = FileDialog1->GetPath();
-    if ( FileName.IsEmpty() ) return;
-
-    ret = configFile.ReadConfigFile(string(FileName.mb_str(wxConvUTF8)));
-
-    if(ret < 0)
-    {
-      wxMessageBox(wxString(configFile.GetError().c_str(), wxConvUTF8), _("Error"), wxICON_ERROR);
+    if (!::wxFileExists (directory + "/" + file)) {
+        wxMessageBox( _("Cannot open config file: ") + file, _("Error"), wxICON_ERROR);
+        return;
     }
-    else if(ret > 0)
-    {
-      wxMessageBox(wxString(configFile.GetInfo().c_str(), wxConvUTF8), _("Info"), wxICON_INFORMATION);
+
+    int ret = configFile.ReadConfigFile(TO_STRING(directory), TO_STRING(file));
+
+    if (ret < 0) {
+        wxMessageBox(TO_WXSTRING(configFile.GetError()), _("Error"), wxICON_ERROR);
+        return;
+    } else if (ret > 0) {
+        wxMessageBox(TO_WXSTRING(configFile.GetInfo()), _("Info"), wxICON_INFORMATION);
     }
 
     MenuItemMultipleMiceAndKeyboards->Check(configFile.MultipleMK());
-    if(MenuItemMultipleMiceAndKeyboards->IsChecked())
-    {
+    if (MenuItemMultipleMiceAndKeyboards->IsChecked()) {
         MenuItemReplaceMouse->Enable(true);
         MenuItemReplaceKeyboard->Enable(true);
-    }
-    else
-    {
+    } else {
         MenuItemReplaceMouse->Enable(false);
         MenuItemReplaceKeyboard->Enable(false);
     }
 
     currentController = 0;
-    currentConfiguration = 0;
+    currentProfile = 0;
     MenuController->Check(ID_MENUITEM1, true);
-    MenuConfiguration->Check(ID_MENUITEM8, true);
+    MenuProfile->Check(ID_MENUITEM8, true);
     load_current();
     refresh_gui();
     reset_buttons();
     MenuFile->Enable(idMenuSave, true);
+    configFile.SetDirectory(TO_STRING(directory));
+    configFile.SetFile(TO_STRING(file));
+    wxTopLevelWindow::SetTitle(file + wxT(" - Gimx-config"));
+    openedConfigFile = configFile;
+}
 
+/*
+ * \brief Method called on File>Open click.
+ */
+void configFrame::OnMenuOpen(wxCommandEvent& event __attribute__((unused)))
+{
+    wxFileDialog FileDialog(this, _("Select file"), TO_WXSTRING(configFile.GetDirectory()), wxEmptyString,
+            _("XML files (*.xml)|*.xml"), wxFD_DEFAULT_STYLE | wxFD_OPEN, wxDefaultPosition, wxDefaultSize,
+            _T("wxFileDialog"));
+
+    if ( FileDialog.ShowModal() == wxID_CANCEL) {
+        return;
+    }
+
+    checkSave();
+
+    openConfiguration(FileDialog.GetDirectory(), FileDialog.GetFilename());
 }
 
 /*
@@ -2713,8 +2763,8 @@ void configFrame::OnMenuItemController(wxCommandEvent& event __attribute__((unus
     {
       currentController = 6;
     }
-    currentConfiguration = 0;
-    MenuConfiguration->Check(ID_MENUITEM8, true);
+    currentProfile = 0;
+    MenuProfile->Check(ID_MENUITEM8, true);
     load_current();
     reset_buttons();
     refresh_gui();
@@ -2727,41 +2777,56 @@ void configFrame::OnMenuItemController(wxCommandEvent& event __attribute__((unus
 void configFrame::OnMenuItemConfiguration(wxCommandEvent& event __attribute__((unused)))
 {
   save_current();
-  if(MenuConfiguration1->IsChecked())
+  if(MenuProfile1->IsChecked())
   {
-    currentConfiguration = 0;
+    currentProfile = 0;
   }
-  else if(MenuConfiguration2->IsChecked())
+  else if(MenuProfile2->IsChecked())
   {
-    currentConfiguration = 1;
+    currentProfile = 1;
   }
-  else if(MenuConfiguration3->IsChecked())
+  else if(MenuProfile3->IsChecked())
   {
-    currentConfiguration = 2;
+    currentProfile = 2;
   }
-  else if(MenuConfiguration4->IsChecked())
+  else if(MenuProfile4->IsChecked())
   {
-    currentConfiguration = 3;
+    currentProfile = 3;
   }
-  else if(MenuConfiguration5->IsChecked())
+  else if(MenuProfile5->IsChecked())
   {
-    currentConfiguration = 4;
+    currentProfile = 4;
   }
-  else if(MenuConfiguration6->IsChecked())
+  else if(MenuProfile6->IsChecked())
   {
-    currentConfiguration = 5;
+    currentProfile = 5;
   }
-  else if(MenuConfiguration7->IsChecked())
+  else if(MenuProfile7->IsChecked())
   {
-    currentConfiguration = 6;
+    currentProfile = 6;
   }
-  else if(MenuConfiguration8->IsChecked())
+  else if(MenuProfile8->IsChecked())
   {
-    currentConfiguration = 7;
+    currentProfile = 7;
   }
   load_current();
   reset_buttons();
   refresh_gui();
+}
+
+bool configFrame::save(const wxString& directory, const wxString& file)
+{
+    save_current();
+    reset_buttons();
+    if (configFile.WriteConfigFile(TO_STRING(directory), TO_STRING(file)) < 0) {
+        wxMessageBox(_("Can't save ") + file, _("Error"), wxICON_ERROR);
+        return false;
+    } else {
+        openedConfigFile = configFile;
+        SetTitle(file + wxT(" - Gimx-config"));
+        Refresh();
+    }
+    return true;
 }
 
 /*
@@ -2770,38 +2835,23 @@ void configFrame::OnMenuItemConfiguration(wxCommandEvent& event __attribute__((u
  */
 void configFrame::OnMenuSave(wxCommandEvent& event __attribute__((unused)))
 {
-    wxString end;
-    save_current();
-    if(configFile.WriteConfigFile() < 0)
-    {
-      wxMessageBox(_("Can't save ") + wxString(configFile.GetFilePath().c_str(), wxConvUTF8), _("Error"), wxICON_ERROR);
-    }
-    reset_buttons();
+    save(configFile.GetDirectory(), configFile.GetFile());
 }
 
 /*
  * \bried Method called on File>Save_As click. \
  *        It asks the user for a config location & name, and calls OnMenuSave.
  */
-void configFrame::OnMenuSaveAs(wxCommandEvent& event)
+void configFrame::OnMenuSaveAs(wxCommandEvent& event __attribute__((unused)))
 {
-    wxFileDialog saveFileDialog(this, _("Save config file"), wxT(""), wxT(""), _("XML files (*.xml)|*.xml"), wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
+    wxFileDialog saveFileDialog(this, _("Save config file"), TO_WXSTRING(configFile.GetDirectory()),
+            TO_WXSTRING(configFile.GetFile()), _("XML files (*.xml)|*.xml"), wxFD_SAVE|wxFD_OVERWRITE_PROMPT);
 
-    saveFileDialog.SetDirectory(FileDialog1->GetDirectory());
-    saveFileDialog.SetFilename(FileDialog1->GetFilename());
+    if ( saveFileDialog.ShowModal() == wxID_CANCEL) {
+        return;
+    }
 
-    if ( saveFileDialog.ShowModal() == wxID_CANCEL ) return;
-
-    wxString FileName = saveFileDialog.GetPath();
-
-    if ( FileName.IsEmpty() ) return;
-
-    configFile.SetFilePath(string(FileName.mb_str(wxConvUTF8)));
-
-    OnMenuSave(event);
-
-    FileDialog1->SetDirectory(saveFileDialog.GetDirectory());
-    FileDialog1->SetFilename(saveFileDialog.GetFilename());
+    save(saveFileDialog.GetDirectory(), saveFileDialog.GetFilename());
 
     MenuFile->Enable(idMenuSave, true);
 }
@@ -2940,9 +2990,9 @@ void configFrame::updateButtonConfigurations()
 
     Controller* controller = configFile.GetController(currentController);
 
-    for(k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(k=0; k<MAX_PROFILES; ++k)
     {
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       buttonMappers = config->GetButtonMapperList();
       for(std::list<ControlMapper>::iterator it = buttonMappers->begin(); it!=buttonMappers->end(); ++it)
@@ -3124,9 +3174,9 @@ void configFrame::updateAxisConfigurations()
 
     Controller* controller = configFile.GetController(currentController);
 
-    for(k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(k=0; k<MAX_PROFILES; ++k)
     {
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       axisMappers = config->GetAxisMapperList();
       for(std::list<ControlMapper>::iterator it = axisMappers->begin(); it!=axisMappers->end(); ++it)
@@ -3172,7 +3222,7 @@ void configFrame::OnAxisTabShapeSelect(wxCommandEvent& event __attribute__((unus
 void configFrame::OnMenuItemCopyConfiguration(wxCommandEvent& event __attribute__((unused)))
 {
   save_current();
-  tempConfiguration = *configFile.GetController(currentController)->GetConfiguration(currentConfiguration);
+  tempProfile = *configFile.GetController(currentController)->GetProfile(currentProfile);
 }
 
 /*
@@ -3181,7 +3231,7 @@ void configFrame::OnMenuItemCopyConfiguration(wxCommandEvent& event __attribute_
  */
 void configFrame::OnMenuItemPasteConfiguration(wxCommandEvent& event __attribute__((unused)))
 {
-  configFile.GetController(currentController)->SetConfiguration(tempConfiguration, currentConfiguration);
+  configFile.GetController(currentController)->SetProfile(tempProfile, currentProfile);
   load_current();
   refresh_gui();
   reset_buttons();
@@ -3265,9 +3315,9 @@ void configFrame::replaceDevice(wxString wx_device_type)
 
     Controller* controller = configFile.GetController(currentController);
 
-    for(k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(k=0; k<MAX_PROFILES; ++k)
     {
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       Trigger* trigger = config->GetTrigger();
 
@@ -3353,6 +3403,13 @@ void configFrame::OnMenuReplaceKeyboard(wxCommandEvent& event __attribute__((unu
     replaceDevice(wxT("keyboard"));
 }
 
+int numPlaces (int n)
+{
+    if (n < 0) return numPlaces ((n == INT_MIN) ? INT_MAX: -n);
+    if (n < 10) return 1;
+    return 1 + numPlaces (n / 10);
+}
+
 /*
  * \brief Method called on Edit>Replace_Mouse_DPI click. \
  *        It converts the sensitivity in the current controller. \
@@ -3411,9 +3468,9 @@ void configFrame::OnMenuReplaceMouseDPI(wxCommandEvent& event __attribute__((unu
 
             Controller* controller = configFile.GetController(currentController);
 
-            for(k=0; k<MAX_CONFIGURATIONS; ++k)
+            for(k=0; k<MAX_PROFILES; ++k)
             {
-              Configuration* config = controller->GetConfiguration(k);
+              Profile* config = controller->GetProfile(k);
 
               axisMappers = config->GetAxisMapperList();
               for(std::list<ControlMapper>::iterator it = axisMappers->begin(); it!=axisMappers->end(); ++it)
@@ -3424,11 +3481,21 @@ void configFrame::OnMenuReplaceMouseDPI(wxCommandEvent& event __attribute__((unu
                   {
                     continue;
                   }
-                  double val = atof(it->GetEvent()->GetMultiplier().c_str());
-                  double exp = atof(it->GetEvent()->GetExponent().c_str());
+                  double val;
+                  if(!ToDouble(wxString(it->GetEvent()->GetMultiplier().c_str(), wxConvUTF8), &val, decimalPoint))
+                  {
+                    wxMessageBox( _("Failed to parse sensitivity value!"), _("Error"), wxICON_ERROR);
+                    continue;
+                  }
+                  double exp;
+                  if(!ToDouble(wxString(it->GetEvent()->GetExponent().c_str(), wxConvUTF8), &exp, decimalPoint))
+                  {
+                    wxMessageBox( _("Failed to parse acceleration value!"), _("Error"), wxICON_ERROR);
+                    continue;
+                  }
                   val = val * pow((double)old_value / new_value, exp);
                   ostringstream ios;
-                  ios << setprecision(2) << val;
+                  ios << setprecision(2 + numPlaces((int)val)) << val;
                   it->GetEvent()->SetMultiplier(ios.str());
                 }
               }
@@ -3740,7 +3807,7 @@ void configFrame::OnMenuMultipleMK(wxCommandEvent& event __attribute__((unused))
  */
 void configFrame::OnMenuAutoBindControls(wxCommandEvent& event __attribute__((unused)))
 {
-  if(configFile.GetFilePath().empty())
+  if(configFile.GetFile().empty())
   {
     wxMessageBox( _("No config opened!"), _("Error"), wxICON_ERROR);
     return;
@@ -3753,7 +3820,7 @@ void configFrame::OnMenuAutoBindControls(wxCommandEvent& event __attribute__((un
   wxString FileName = FileDialog.GetPath();
   if ( FileName.IsEmpty() ) return;
 
-  if(configFile.AutoBind(string(FileName.mb_str(wxConvUTF8))) < 0)
+  if(configFile.AutoBind(TO_STRING(FileDialog.GetDirectory()), TO_STRING(FileDialog.GetFilename())) < 0)
   {
     wxMessageBox(_("Can't auto-bind controls!"), _("Error"), wxICON_ERROR);
   }
@@ -3836,9 +3903,9 @@ void configFrame::updateIntensityConfigurations(Intensity* oldI, Intensity* newI
 
     Controller* controller = configFile.GetController(currentController);
 
-    for(k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(k=0; k<MAX_PROFILES; ++k)
     {
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       intensities = config->GetIntensityList();
       for(std::list<Intensity>::iterator it = intensities->begin(); it!=intensities->end(); ++it)
@@ -3935,9 +4002,9 @@ void configFrame::OnIntensityModifyClick(wxCommandEvent& event)
           string(GridIntensity->GetCellValue(grid3mod, 3).mb_str(wxConvUTF8)),
           string(GridIntensity->GetCellValue(grid3mod, 4).mb_str(wxConvUTF8)),
           string(GridIntensity->GetCellValue(grid3mod, 5).mb_str(wxConvUTF8)),
-          wxAtoi(GridIntensity->GetCellValue(grid3mod, 6)),
+          string(GridIntensity->GetCellValue(grid3mod, 6).mb_str(wxConvUTF8)),
           reverseTranslate(string(GridIntensity->GetCellValue(grid3mod, 7).mb_str(wxConvUTF8))),
-          wxAtoi(GridIntensity->GetCellValue(grid3mod, 8)));
+          string(GridIntensity->GetCellValue(grid3mod, 8).mb_str(wxConvUTF8)));
 
       GridIntensity->SetCellValue(grid3mod, 0, IntensityAxis->GetStringSelection());
       GridIntensity->SetCellValue(grid3mod, 1, IntensityDeviceType->GetLabel());
@@ -3960,9 +4027,9 @@ void configFrame::OnIntensityModifyClick(wxCommandEvent& event)
           string(GridIntensity->GetCellValue(grid3mod, 3).mb_str(wxConvUTF8)),
           string(GridIntensity->GetCellValue(grid3mod, 4).mb_str(wxConvUTF8)),
           string(GridIntensity->GetCellValue(grid3mod, 5).mb_str(wxConvUTF8)),
-          wxAtoi(GridIntensity->GetCellValue(grid3mod, 6)),
+          string(GridIntensity->GetCellValue(grid3mod, 6).mb_str(wxConvUTF8)),
           reverseTranslate(string(GridIntensity->GetCellValue(grid3mod, 7).mb_str(wxConvUTF8))),
-          wxAtoi(GridIntensity->GetCellValue(grid3mod, 8)));
+          string(GridIntensity->GetCellValue(grid3mod, 8).mb_str(wxConvUTF8)));
 
       if(MenuItemLinkControls->IsChecked())
       {
@@ -4101,9 +4168,9 @@ void configFrame::updateMouseOptionsConfigurations(MouseOptions* oldM, MouseOpti
 
     Controller* controller = configFile.GetController(currentController);
 
-    for(k=0; k<MAX_CONFIGURATIONS; ++k)
+    for(k=0; k<MAX_PROFILES; ++k)
     {
-      Configuration* config = controller->GetConfiguration(k);
+      Profile* config = controller->GetProfile(k);
 
       mouseOptions = config->GetMouseOptionsList();
       for(std::list<MouseOptions>::iterator it = mouseOptions->begin(); it!=mouseOptions->end(); ++it)
@@ -4485,6 +4552,7 @@ pair<Device, Event> configFrame::selectEvent()
     return make_pair(Device(), Event());
 }
 
+
 void configFrame::OnButtonForceFeedbackAutoDetect(wxCommandEvent& event __attribute__((unused)))
 {
     if (evcatch->hasJoystick() == false)
@@ -4515,6 +4583,11 @@ void configFrame::OnButtonFFBTweaksDelete(wxCommandEvent& event __attribute__((u
     FFBTweaksId->SetLabel(wxEmptyString);
 
     FFBTweaksInvert->SetValue(false);
+
+    FFBTweaksRumbleGain->SetValue(_T("100"));
+    FFBTweaksConstantGain->SetValue(_T("100"));
+    FFBTweaksSpringGain->SetValue(_T("100"));
+    FFBTweaksDamperGain->SetValue(_T("100"));
 
     refresh_gui();
 }

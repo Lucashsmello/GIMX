@@ -26,7 +26,7 @@ $(CLEANDIRS):
 
 ifeq ($(OS),Windows_NT)
 DLLS = $(shell ntldd -R {core,config,fpsconfig,launcher}/*.exe | grep mingw | sed "s/.*=> //g" | cut -d' ' -f 1 | sed 's/\\/\\\\/g' | xargs cygpath -u | sort | uniq)\
-	   $(shell ntldd -R {shared/*,shared/*/*/*}/*.dll | grep mingw | sed "s/.*=> //g" | cut -d' ' -f 1 | sed 's/\\/\\\\/g' | xargs cygpath -u | sort | uniq)
+	   $(shell ntldd -R shared/*/*.dll | grep mingw | sed "s/.*=> //g" | cut -d' ' -f 1 | sed 's/\\/\\\\/g' | xargs cygpath -u | sort | uniq)
 install: all
 	mkdir -p setup
 	for DLL in $(DLLS); \
@@ -38,7 +38,7 @@ install: all
 	cp -u -f launcher/gimx-launcher setup/gimx-launcher.exe
 	cp -u -f fpsconfig/gimx-fpsconfig setup/gimx-fpsconfig.exe
 	cp -u -f loader/gimx-loader setup/gimx-loader.exe
-	cp -u -f shared/gasync/src/input/windows/gamecontrollerdb.txt setup
+	cp -u -f shared/gimxinput/src/windows/gamecontrollerdb.txt setup
 	mkdir -p setup/share/locale
 	for translation in po/*.po; \
   do \
@@ -49,7 +49,6 @@ install: all
 	mkdir -p setup/ssl/certs
 	cp -u -f /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem setup/ssl/certs/ca-bundle.crt
 	cp -u -f shared/*/*.dll setup
-	cp -u -f shared/gasync/src/*/*.dll setup
 	mkdir -p setup/firmware
 	for fw in loader/firmware/*.hex; \
   do \

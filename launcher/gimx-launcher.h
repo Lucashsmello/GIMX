@@ -7,7 +7,6 @@
 #define LAUNCHERMAIN_H
 
 //(*Headers(launcherFrame)
-#include <wx/checkbox.h>
 #include <wx/sizer.h>
 #include <wx/button.h>
 #include <wx/menu.h>
@@ -22,6 +21,9 @@
 #include <wx/progdlg.h>
 
 #include <vector>
+
+#include <gimxconfigupdater/configupdater.h>
+#include <gimxupdater/Updater.h>
 
 using namespace std;
 
@@ -51,7 +53,8 @@ class launcherFrame: public wxFrame
 
         void OnProcessTerminated(wxProcess *process, int status);
 
-        void OnUpdateProgress(string & file, unsigned int dlcurrent, unsigned int dltotal);
+        int OnUpdateProgress(Updater::UpdaterStatus status, double progress, double total);
+        int OnUpdateProgress(configupdater::ConfigUpdaterStatus status, double progress, double total);
 
     private:
 
@@ -79,6 +82,7 @@ class launcherFrame: public wxFrame
         void OnOutputNewButtonClick(wxCommandEvent& event);
         void OnInputNewButtonClick(wxCommandEvent& event);
         void OnMenuUpdateFirmware(wxCommandEvent& event);
+        void OnMenuOpenMacroDirectory(wxCommandEvent& event);
         //*)
 
         void refresh();
@@ -89,6 +93,9 @@ class launcherFrame: public wxFrame
         void readSerialPorts();
         void readConfigs();
         
+        void autoConfig();
+        bool getConfig(const std::string& config);
+
         int readChoices(const char* file, wxChoice* choices, const char* default_file);
         int saveChoices(const char* file, wxChoice* choices);
         int saveLinkKeys(wxString dongleBdaddr, wxString ds4Bdaddr, wxString ds4LinkKey, wxString ps4Bdaddr, wxString ps4LinkKey);
@@ -117,6 +124,9 @@ class launcherFrame: public wxFrame
 
         void readDebugStrings(wxArrayString & values);
 
+        void initDownload(wxProgressDialog * dlg);
+        void cleanDownload();
+
         //(*Identifiers(launcherFrame)
         static const long ID_STATICTEXT4;
         static const long ID_CHOICE1;
@@ -131,13 +141,14 @@ class launcherFrame: public wxFrame
         static const long ID_STATICTEXT5;
         static const long ID_CHOICE4;
         static const long ID_STATICTEXT6;
-        static const long ID_CHECKBOX1;
+        static const long ID_CHOICE6;
         static const long ID_BUTTON1;
         static const long ID_BUTTON3;
         static const long ID_PANEL1;
         static const long ID_MENUITEM1;
         static const long ID_MENUITEM2;
         static const long ID_MENUITEM8;
+        static const long ID_MENUITEM11;
         static const long ID_MENUITEM7;
         static const long ID_MENUITEM3;
         static const long ID_MENUITEM9;
@@ -175,11 +186,12 @@ class launcherFrame: public wxFrame
         wxChoice* Input;
         wxMenuItem* MenuItem5;
         wxStaticText* StaticText4;
-        wxCheckBox* CheckBoxGrab;
         wxFlexGridSizer* SourceIpSizer;
         wxStaticText* StaticText5;
         wxStaticText* StaticText2;
+        wxChoice* MouseGrabChoice;
         wxMenuItem* MenuItem4;
+        wxMenuItem* MenuItem6;
         wxButton* ButtonStart;
         wxMenuItem* MenuEditConfig;
         wxStaticText* OutputText;
@@ -194,6 +206,7 @@ class launcherFrame: public wxFrame
         wxString userDir;
         wxString gimxConfigDir;
         wxString gimxLogDir;
+        wxString gimxMacrosDir;
         wxString launcherDir;
         wxString gimxDir;
 
@@ -202,6 +215,7 @@ class launcherFrame: public wxFrame
         bool openLog;
 
         wxProgressDialog * progressDialog;
+        int progressValue;
 
         DECLARE_EVENT_TABLE()
 };

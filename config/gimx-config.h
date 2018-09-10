@@ -15,7 +15,6 @@
 #include <wx/notebook.h>
 #include <wx/button.h>
 #include <wx/menu.h>
-#include <wx/filedlg.h>
 #include <wx/panel.h>
 #include <wx/statusbr.h>
 #include <wx/statline.h>
@@ -25,8 +24,8 @@
 #include <wx/choice.h>
 //*)
 
-#include <event_catcher.h>
-#include <ConfigurationFile.h>
+#include <gimxconfigeditor/include/EventCatcher.h>
+#include <gimxconfigeditor/include/ConfigurationFile.h>
 
 class configFrame: public wxFrame
 {
@@ -111,6 +110,7 @@ class configFrame: public wxFrame
         void OnButtonFFBTweaksDelete(wxCommandEvent& event);
         void OnAxisTabAxisIdSelect(wxCommandEvent& event);
         //*)
+        void OnClose(wxCloseEvent& event);
         void DeleteSelectedRows(wxGrid* grid);
         void DeleteLinkedRows(wxGrid* grid, int row);
         void replaceDevice(wxString wx_device_type);
@@ -132,6 +132,9 @@ class configFrame: public wxFrame
         void LoadControllerType();
         pair<Device, Event> selectEvent();
         void addJoystickCorrection();
+        void openConfiguration(const wxString& directory, const wxString& file);
+        bool save(const wxString& directory, const wxString& file);
+        void checkSave();
 
         //(*Identifiers(configFrame)
         static const long ID_STATICTEXT35;
@@ -210,7 +213,16 @@ class configFrame: public wxFrame
         static const long ID_STATICTEXT49;
         static const long ID_BUTTON20;
         static const long ID_STATICLINE13;
+        static const long ID_STATICTEXT31;
+        static const long ID_STATICTEXT50;
+        static const long ID_STATICTEXT29;
+        static const long ID_STATICTEXT33;
+        static const long ID_STATICTEXT48;
         static const long ID_CHECKBOX2;
+        static const long ID_SPINCTRL4;
+        static const long ID_SPINCTRL3;
+        static const long ID_SPINCTRL2;
+        static const long ID_SPINCTRL1;
         static const long ID_STATICLINE15;
         static const long ID_BUTTON24;
         static const long ID_PANEL8;
@@ -316,14 +328,12 @@ class configFrame: public wxFrame
         //*)
 
         //(*Declarations(configFrame)
-        wxFileDialog* FileDialog1;
         wxMenu* MenuType;
         wxButton* MouseOptionsAutoDetect;
         wxStaticText* StaticText1;
         wxSpinCtrl* ProfileTriggerDelay;
         wxButton* IntensityRemove;
         wxStaticText* StaticText13;
-        wxMenuItem* MenuConfiguration7;
         wxChoice* ButtonTabEventType;
         wxStaticText* JoystickCorrectionsName;
         wxNotebook* Notebook2;
@@ -331,7 +341,9 @@ class configFrame: public wxFrame
         wxPanel* PanelIntensity;
         wxMenuItem* MenuItemCopyProfile;
         wxStaticText* FFBTweaksName;
+        wxMenuItem* MenuProfile7;
         wxStaticText* IntensityDeviceId;
+        wxMenuItem* MenuProfile6;
         wxStatusBar* StatusBar1;
         wxStaticText* AxisTabDeviceId;
         wxGrid* GridPanelButton;
@@ -342,7 +354,6 @@ class configFrame: public wxFrame
         wxMenuItem* MenuItemLinkControls;
         wxStaticText* StaticText6;
         wxStaticLine* StaticLine12;
-        wxMenuItem* MenuConfiguration5;
         wxMenuItem* MenuItemT300rsPs4;
         wxStaticText* StaticText18;
         wxStaticText* StaticText17;
@@ -352,6 +363,7 @@ class configFrame: public wxFrame
         wxStaticLine* StaticLine1;
         wxStaticText* ButtonTabEventId;
         wxTextCtrl* AxisTabSensitivity;
+        wxSpinCtrl* FFBTweaksSpringGain;
         wxStaticLine* StaticLine8;
         wxMenuItem* MenuItemReplaceMouse;
         wxChoice* IntensityDirection;
@@ -369,7 +381,7 @@ class configFrame: public wxFrame
         wxButton* ButtonTabAutoDetect;
         wxTextCtrl* AxisTabDeadZone;
         wxPanel* PanelOverall;
-        wxMenuItem* MenuConfiguration4;
+        wxMenuItem* MenuProfile3;
         wxStaticText* StaticText2;
         wxStaticText* StaticTextThresholdPanelButton;
         wxButton* IntensityAdd;
@@ -378,34 +390,37 @@ class configFrame: public wxFrame
         wxMenuItem* MenuItemNew;
         wxStaticText* ButtonTabDeviceId;
         wxStaticText* ProfileTriggerDeviceName;
-        wxMenuItem* MenuConfiguration6;
+        wxMenuItem* MenuProfile1;
         wxButton* ButtonFFBTweaksDelete;
         wxChoice* IntensityAxis;
         wxMenuItem* MenuItem360;
         wxButton* JoystickCorrectionAdd;
-        wxMenuItem* MenuConfiguration3;
         wxStaticText* IntensityDeviceType;
+        wxMenuItem* MenuProfile5;
         wxButton* ButtonTabModify;
         wxButton* AxisTabAutoDetect;
         wxCheckBox* FFBTweaksInvert;
         wxButton* IntensityModify;
         wxChoice* AxisTabEventType;
+        wxMenuItem* MenuProfile8;
         wxStaticText* AxisTabDeviceName;
         wxStaticText* ProfileTriggerButtonId;
         wxMenuItem* MenuController6;
         wxStaticText* ProfileTriggerDeviceType;
         wxStaticText* JoystickCorrectionsAxis;
-        wxMenu* MenuConfiguration;
         wxStaticLine* StaticLine7;
         wxGrid* GridJoystickCorrections;
         wxMenu* MenuEdit;
         wxStaticText* FFBTweaksType;
+        wxStaticText* StaticText16;
+        wxMenuItem* MenuProfile2;
         wxPanel* PanelJoystickCorrections;
         wxGrid* GridPanelAxis;
         wxMenu* MenuFile;
         wxPanel* PanelAxis;
         wxStaticText* IntensityDeviceName;
         wxStaticText* MouseOptionsName;
+        wxSpinCtrl* FFBTweaksConstantGain;
         wxMenuItem* MenuItemDS4;
         wxButton* IntensityAutoDetect;
         wxPanel* PanelButton;
@@ -414,17 +429,17 @@ class configFrame: public wxFrame
         wxComboBox* AxisTabLabel;
         wxMenuItem* MenuItemPasteProfile;
         wxStaticText* StaticTextLabel;
-        wxMenuItem* MenuConfiguration1;
         wxButton* Button5;
         wxMenuItem* MenuItemSaveAs;
-        wxChoice* AxisTabShape;
         wxMenuItem* MenuItemJs;
+        wxChoice* AxisTabShape;
         wxStaticText* AxisTabEventId;
         wxMenuItem* MenuController3;
         wxStaticText* StaticTextEmptyPanelAxis;
         wxStaticText* FFBTweaksAxis;
         wxStaticText* StaticTextDZPanelAxis;
         wxMenuItem* MenuItem2;
+        wxStaticText* StaticText4;
         wxChoice* ButtonTabButtonId;
         wxStaticText* StaticText8;
         wxMenuItem* MenuItemXOne;
@@ -432,15 +447,15 @@ class configFrame: public wxFrame
         wxMenuItem* MenuItemDfpPs2;
         wxStaticLine* StaticLine4;
         wxTextCtrl* JoystickCorrectionsHighCoef;
-        wxMenuItem* MenuConfiguration8;
-        wxMenuItem* MenuConfiguration2;
         wxPanel* PanelForceFeedback;
         wxButton* MouseOptionsRemove;
         wxGrid* GridIntensity;
         wxStaticText* JoystickCorrectionsId;
+        wxMenu* MenuProfile;
         wxMenuItem* MenuItemReplaceMouseDPI;
         wxStaticLine* StaticLine6;
         wxPanel* PanelMouseOptions;
+        wxStaticText* StaticText19;
         wxStaticText* MouseOptionsType;
         wxButton* Button7;
         wxChoice* IntensityShape;
@@ -459,10 +474,12 @@ class configFrame: public wxFrame
         wxTextCtrl* AxisTabAcceleration;
         wxStaticText* ButtonTabDeviceType;
         wxMenuItem* MenuItemSave;
+        wxMenuItem* MenuItemDfPs2;
         wxMenuItem* MenuItemReplaceKeyboard;
         wxMenuItem* MenuItemSetMouseDPI;
-        wxMenuItem* MenuItemDfPs2;
+        wxMenuItem* MenuProfile4;
         wxButton* MouseOptionsModify;
+        wxSpinCtrl* FFBTweaksRumbleGain;
         wxStaticText* MouseOptionsButton;
         wxTextCtrl* JoystickCorrectionsHighValue;
         wxMenuItem* MenuItemDS3;
@@ -484,10 +501,13 @@ class configFrame: public wxFrame
         wxButton* JoystickCorrectionModify;
         wxStaticText* StaticTextAccelPanelAxis;
         wxStaticLine* StaticLine14;
+        wxStaticText* StaticText10;
         wxTextCtrl* JoystickCorrectionsLowCoef;
+        wxStaticText* StaticText5;
         wxStaticText* StaticTextDelayPanelOverall;
         wxNotebook* Notebook1;
         wxStaticLine* StaticLine15;
+        wxSpinCtrl* FFBTweaksDamperGain;
         wxStaticText* StaticTextSensPanelAxis;
         wxMenuItem* MenuController7;
         wxButton* ButtonDelete;
@@ -504,12 +524,13 @@ class configFrame: public wxFrame
         wxLocale* locale;
         wxString decimalPoint;
 
-        event_catcher* evcatch;
+        EventCatcher* evcatch;
         ConfigurationFile configFile;
+        ConfigurationFile openedConfigFile;
         unsigned int currentController;
-        unsigned int currentConfiguration;
+        unsigned int currentProfile;
 
-        Configuration tempConfiguration;
+        Profile tempProfile;
         Controller tempController;
 
         unsigned int grid1mod;
