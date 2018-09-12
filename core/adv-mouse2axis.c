@@ -6,7 +6,6 @@
  */
 
 #include <adv-mouse2axis.h>
-#include <ginput.h>
 #include "gimx.h"
 #include <stdlib.h>
 #include <math.h>
@@ -155,48 +154,44 @@ static double clampMotionResidue(double motion_residue, int x) {
 	return motion_residue;
 }
 
-double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double exp,
-		double multiplier, int dead_zone, const mouse2axis_config* m2a_config) {
-	int axis = axis_props->axis;
-	if ((which == AXIS_X && x == 0) || (which == AXIS_Y && y == 0)) {
-		controller->axis[axis] = 0;
-		return 0;
+static double calculateMotionResidue(int axis_out, double v_out, double v_in, double mult,
+		const mouse2axis_config* m2a_config) {
+	double residue;
+	residue = (v_out - v_in) / mult;
+	if (m2a_config->motion_residue_extrapolation == false) {
+		residue = clampMotionResidue(residue, axis_out);
+	} else {
+		double max_motion_residue = 256 / mult;
+		residue = dclamp(-max_motion_residue, residue, max_motion_residue);
 	}
-	double motion_residue = 0;
-	double multiplier_x = multiplier * controller_get_axis_scale(controller->ctype, AXIS_X);
-	double multiplier_y = multiplier * controller_get_axis_scale(controller->ctype, AXIS_Y);
+	return residue;
+}
 
-	multiplier_x = pow(multiplier_x, exp);
-	multiplier_y = pow(multiplier_y, exp);
+void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector * input, s_mouse_control * mc,
+		const mouse2axis_config* m2a_config) {
+	s_mapper * mapper_y = mapper_x->other;
+	if (input->x == 0 && input->y == 0) {
+		controller->axis[mapper_x->axis_props.axis] = controller->axis[mapper_y->axis_props.axis] = 0;
+		mc->residue.x = mc->residue.y = 0;
+		return;
+	}
+	double exponent = mapper_x->exponent;
+	double axis_scale = controller_get_axis_scale(controller->ctype, mapper_x->axis);
+	double multiplier_x = mapper_x->multiplier * axis_scale;
+	double multiplier_y = mapper_y->multiplier * axis_scale;
+
+	multiplier_x = pow(multiplier_x, exponent);
+	multiplier_y = pow(multiplier_y, exponent);
 
 	mouse2axisPoint p;
-	x *= multiplier_x;
-	y *= multiplier_y;
+	double x = input->x * multiplier_x;
+	double y = input->y * multiplier_y;
 
-	p = mouse2axis_translation(x, y, dead_zone, exp, m2a_config);
+	p = mouse2axis_translation(x, y, mapper_x->dead_zone, exponent, m2a_config);
 
-	switch (which) {
-	case AXIS_X:
-		controller->axis[axis] = p.x;
-		motion_residue = (x - p.mouse_x) / multiplier_x;
-		if (m2a_config->motion_residue_extrapolation == false) {
-			motion_residue = clampMotionResidue(motion_residue, p.x);
-		}
+	controller->axis[mapper_x->axis_props.axis] = p.x;
+	controller->axis[mapper_y->axis_props.axis] = p.y;
 
-		break;
-	case AXIS_Y:
-		controller->axis[axis] = p.y;
-		motion_residue = (y - p.mouse_y) / multiplier_y;
-		if (m2a_config->motion_residue_extrapolation == false) {
-			motion_residue = clampMotionResidue(motion_residue, p.y);
-		}
-		break;
-	}
-
-	if (m2a_config->motion_residue_extrapolation == true) {
-		double max_motion_residue = 256 / multiplier;
-		motion_residue = dclamp(-max_motion_residue, motion_residue, max_motion_residue);
-	}
-
-	return motion_residue;
+	mc->residue.x = calculateMotionResidue(p.x, p.mouse_x, x, multiplier_x, m2a_config);
+	mc->residue.y = calculateMotionResidue(p.y, p.mouse_y, y, multiplier_y, m2a_config);
 }

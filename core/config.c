@@ -1154,18 +1154,12 @@ void update_residue(double axis_scale, const s_mapper * mapper_x, const s_mapper
   }
 }
 
-boolean USE_ORIGINAL_MOUSE2AXIS = false;
-
-static double mouse2axis(int device, s_adapter* controller, int which, double x, double y, s_axis_props* axis_props,
-		double exp, double multiplier, int dead_zone, e_shape shape, e_mouse_mode mode) {
-	if (USE_ORIGINAL_MOUSE2AXIS==false) {
-		mouse2axis_config m2a_config;
-		m2a_config.motion_residue_extrapolation = true;
-		m2a_config.preserve_angle = true;
-		m2a_config.zero_axis_is_positive = true;
-		return adv_mouse2axis(controller, which, x, y, axis_props, 1/exp, multiplier, dead_zone, &m2a_config);
-	}
-	return mouse2axis1d(device, controller, which, x, y, axis_props, exp, multiplier, dead_zone, shape, mode);
+static void mouse2axis(int device, s_adapter* controller, const s_mapper * mapper_x, s_vector * input, s_mouse_control * mc) {
+	mouse2axis_config m2a_config;
+	m2a_config.motion_residue_extrapolation = true;
+	m2a_config.preserve_angle = true;
+	m2a_config.zero_axis_is_positive = true;
+	adv_mouse2axis(controller, mapper_x, input, mc, &m2a_config);
 }
 
 static int calibrate_dead_zone(int device, int * axis_x, int * axis_y, s_vector * dead_zones, s_mouse_control * mc)
@@ -1566,7 +1560,8 @@ void cfg_process_event(GE_Event* event)
               {
                 if (mapper->axis == AXIS_X)
                 {
-                  mouse2axis2d(device, controller, mapper, &motion, mc);
+//                  mouse2axis2d(device, controller, mapper, &motion, mc);
+                	mouse2axis(device, controller, mapper, &motion, mc);
                 }
                 else
                 {
