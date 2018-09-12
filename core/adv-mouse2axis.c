@@ -35,7 +35,7 @@ static double dclamp(double min, double x, double max) {
 	return x;
 }
 
-static void fixRoundingError(mouse2axisPoint* p, double x_mouse, double y_mouse, int dead_zone, double exp,
+static void fixRoundingError(mouse2axisPoint* p, double x_mouse, double y_mouse, double dead_zone, double exp,
 		int max_pos_axis) {
 	double best_dist = x_mouse * x_mouse + y_mouse * y_mouse;
 	double cur_dist;
@@ -77,7 +77,7 @@ static void fixRoundingError(mouse2axisPoint* p, double x_mouse, double y_mouse,
 	p->y += best_j;
 }
 
-static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, int dead_zone, double exp,
+static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, double dead_zone, double exp,
 		const mouse2axis_config* m2a_config) {
 	mouse2axisPoint ret;
 	const int max_pos_axis = m2a_config->zero_axis_is_positive == true ? 128 : 127;
@@ -187,7 +187,9 @@ void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector *
 	double x = input->x * multiplier_x;
 	double y = input->y * multiplier_y;
 
-	p = mouse2axis_translation(x, y, mapper_x->dead_zone, exponent, m2a_config);
+	double dz = mapper_y->dead_zone;
+	dz = dz / 100 + mapper_x->dead_zone;
+	p = mouse2axis_translation(x, y, dz, exponent, m2a_config);
 
 	controller->axis[mapper_x->axis_props.axis] = p.x;
 	controller->axis[mapper_y->axis_props.axis] = p.y;
