@@ -157,7 +157,7 @@ static double clampMotionResidue(double motion_residue, int x) {
 static double calculateMotionResidue(int axis_out, double v_out, double v_in, double mult,
 		const mouse2axis_config* m2a_config) {
 	double residue;
-	residue = (v_out - v_in) / mult;
+	residue = (v_in - v_out) / mult;
 	if (m2a_config->motion_residue_extrapolation == false) {
 		residue = clampMotionResidue(residue, axis_out);
 	} else {
