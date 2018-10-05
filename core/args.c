@@ -158,6 +158,7 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
     {"ff_conv",        no_argument, &params->ff_conv,        1},
     {"auto-grab",      no_argument, &params->autograb,       1},
     /* These options don't set a flag. We distinguish them by their indices. */
+	{"advconfig",required_argument, 0, 'a'},
     {"bdaddr",  required_argument, 0, 'b'},
     {"config",  required_argument, 0, 'c'},
     {"dst",     required_argument, 0, 'd'},
@@ -203,6 +204,10 @@ int args_read(int argc, char *argv[], s_gimx_params* params)
         if (optarg)
           printf(_(" with arg %s"), optarg);
         printf("\n");
+        break;
+
+      case 'a':
+        loadMouse2axisTable(optarg);
         break;
 
       case 'b':

@@ -19,6 +19,98 @@ typedef struct {
 	double mouse_y;
 } mouse2axisPoint;
 
+static double mouse2axis_table_out[127]; //lookuptable
+static double mouse2axis_table_in[127];
+static int mouse2axis_tablesize = 0;
+
+static void postProcessTranslation(mouse2axisPoint* p, double x_mouse, double y_mouse,
+		const mouse2axis_config* m2a_config) {
+	if (x_mouse <= 0) {
+		p->mouse_x *= -1;
+		p->x *= -1;
+		if (m2a_config->zero_axis_is_positive == false && p->x < -64) {
+			p->x--;
+		}
+	} else {
+		if (m2a_config->zero_axis_is_positive == true) {
+			p->x--;
+		}
+	}
+	if (y_mouse <= 0) {
+		p->mouse_y *= -1;
+		p->y *= -1;
+		if (m2a_config->zero_axis_is_positive == false && p->y < -64) {
+			p->y--;
+		}
+	} else {
+		if (m2a_config->zero_axis_is_positive == true) {
+			p->y--;
+		}
+	}
+}
+
+/**
+ * Lookup Table
+ */
+void loadMouse2axisTable(const char* filename) {
+	FILE* f = fopen(filename, "r");
+	int k, n;
+	mouse2axis_tablesize = 0;
+	if (f == NULL) {
+		printf("loadMouse2axisTable() has failed: Could not open file\n");
+		return;
+	}
+
+	n = fscanf(f, "%lf;%lf", mouse2axis_table_in, mouse2axis_table_out);
+//	printf("read pair values: (%lf,%lf)\n", *mouse2axis_table_in, *mouse2axis_table_out);
+	for (k = 1; n == 2; k++) {
+		n = fscanf(f, "%lf;%lf", mouse2axis_table_in + k, mouse2axis_table_out + k);
+		if (n == 2) {
+//			printf("read pair values: (%lf,%lf)\n", mouse2axis_table_in[k], mouse2axis_table_out[k]);
+			if (mouse2axis_table_in[k] < mouse2axis_table_in[k - 1]) {
+				printf("loadMouse2axisTable() has failed: Values are not in ascending order!\n");
+				fclose(f);
+				return;
+			}
+		}
+	}
+	printf("Mouse2axisTable has %d values\n", k - 1);
+	mouse2axis_tablesize = k - 1;
+	fclose(f);
+}
+
+static int binarySearch(const double* vet, int n, double x) {
+	int a = 0, b = n - 1, i = (n - 1) / 2;
+	while (a < b - 1) {
+		i = (a + b) / 2;
+		if (x > vet[i]) {
+			a = i + 1;
+		} else {
+			if (x < vet[i]) {
+				b = i - 1;
+			} else {
+				return i;
+			}
+		}
+	}
+	if (a > 0) {
+		a--;
+	}
+	if (b < n - 1) {
+		b++;
+	}
+	int closest_idx = b;
+	double closest = vet[b] - x, c;
+	for (i = a; i < b; i++) {
+		c = fabs(vet[i] - x);
+		if (c < closest) {
+			closest_idx = i;
+			closest = c;
+		}
+	}
+	return closest_idx;
+}
+
 static double norm(double x, double y) {
 	return sqrt(x * x + y * y);
 }
@@ -33,6 +125,32 @@ static double dclamp(double min, double x, double max) {
 	if (x > max)
 		return max;
 	return x;
+}
+
+static mouse2axisPoint lookUpTable(double x_mouse, double y_mouse, const mouse2axis_config* m2a_config) {
+	mouse2axisPoint p;
+	const int max_pos_axis = m2a_config->zero_axis_is_positive == true ? 128 : 127;
+	double fr = norm(x_mouse, y_mouse);
+	int idx = binarySearch(mouse2axis_table_out, mouse2axis_tablesize, fr);
+	double r = mouse2axis_table_in[idx];
+	const double x_mouse_abs = fabs(x_mouse);
+	const double y_mouse_abs = fabs(y_mouse);
+	p.x = round(x_mouse_abs * r / fr);
+	p.y = round(y_mouse_abs * r / fr);
+	p.x = clamp(-128, p.x, max_pos_axis);
+	p.y = clamp(-128, p.y, max_pos_axis);
+
+	/*calculates how much will actually move:*/
+	r = norm(p.x, p.y);
+	idx = binarySearch(mouse2axis_table_in, mouse2axis_tablesize, r);
+	fr = mouse2axis_table_out[idx];
+	p.mouse_x = p.x * fr / r;
+	p.mouse_y = p.y * fr / r;
+	/********************/
+
+	postProcessTranslation(&p, x_mouse, y_mouse, m2a_config);
+
+	return p;
 }
 
 static void fixRoundingError(mouse2axisPoint* p, double x_mouse, double y_mouse, double dead_zone, double exp,
@@ -114,28 +232,7 @@ static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, do
 	ret.mouse_x = ret.x * fr_ret / r_ret;
 	ret.mouse_y = ret.y * fr_ret / r_ret;
 
-	if (x_mouse <= 0) {
-		ret.mouse_x *= -1;
-		ret.x *= -1;
-		if (m2a_config->zero_axis_is_positive == false && ret.x < -64) {
-			ret.x--;
-		}
-	} else {
-		if (m2a_config->zero_axis_is_positive == true) {
-			ret.x--;
-		}
-	}
-	if (y_mouse <= 0) {
-		ret.mouse_y *= -1;
-		ret.y *= -1;
-		if (m2a_config->zero_axis_is_positive == false && ret.y < -64) {
-			ret.y--;
-		}
-	} else {
-		if (m2a_config->zero_axis_is_positive == true) {
-			ret.y--;
-		}
-	}
+	postProcessTranslation(&ret, x_mouse, y_mouse, m2a_config);
 
 	return ret;
 }
@@ -148,7 +245,7 @@ static double clampMotionResidue(double motion_residue, int x) {
 			return 0;
 		return motion_residue;
 	}
-	if (x == -128) {
+	if (x <= -128) {
 		return 0;
 	}
 	return motion_residue;
@@ -175,25 +272,29 @@ void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector *
 		mc->residue.x = mc->residue.y = 0;
 		return;
 	}
-	double exponent = mapper_x->exponent;
 	double axis_scale = controller_get_axis_scale(controller->ctype, mapper_x->axis);
 	double multiplier_x = mapper_x->multiplier * axis_scale;
 	double multiplier_y = mapper_y->multiplier * axis_scale;
-
-	multiplier_x = pow(multiplier_x, exponent);
-	multiplier_y = pow(multiplier_y, exponent);
-
-	mouse2axisPoint p;
 	double x = input->x * multiplier_x;
 	double y = input->y * multiplier_y;
-
-	double dz = mapper_y->dead_zone;
-	dz = dz / 100 + mapper_x->dead_zone;
-	p = mouse2axis_translation(x, y, dz, exponent, m2a_config);
+	mouse2axisPoint p;
+	if (mouse2axis_tablesize <= 0) {
+		double dz = mapper_y->dead_zone;
+		dz = dz / 100 + mapper_x->dead_zone;
+		double exponent = mapper_x->exponent;
+		multiplier_x = pow(multiplier_x, 1 / exponent);
+		multiplier_y = pow(multiplier_y, 1 / exponent);
+		p = mouse2axis_translation(x, y, dz, 1 / exponent, m2a_config);
+	} else {
+		p = lookUpTable(x, y, m2a_config);
+	}
 
 	controller->axis[mapper_x->axis_props.axis] = p.x;
 	controller->axis[mapper_y->axis_props.axis] = p.y;
 
 	mc->residue.x = calculateMotionResidue(p.x, p.mouse_x, x, multiplier_x, m2a_config);
 	mc->residue.y = calculateMotionResidue(p.y, p.mouse_y, y, multiplier_y, m2a_config);
+//	printf("in: (%lf,%lf) move:(%d,%d) residue(%lf,%lf)\n", x, y, p.x, p.y, mc->residue.x, mc->residue.y);
+//	mc->residue.x = 0;
+//	mc->residue.y = 0;
 }
