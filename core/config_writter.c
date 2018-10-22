@@ -7,7 +7,7 @@
 #include "config.h"
 #include "config_reader.h"
 #include <xml_defs.h>
-#include <ginput.h>
+#include <gimxinput/include/ginput.h>
 #include "calibration.h"
 #include <libxml/xmlreader.h>
 #include <libxml/xmlwriter.h>
@@ -15,13 +15,13 @@
 
 #include "../directories.h"
 #include "gimx.h"
-#include <adapter.h>
+#include <controller.h>
 
 /*
  * These variables are used to read the configuration.
  */
 static unsigned int r_controller_id;
-static unsigned int r_config_id;
+static unsigned int r_profile_id;
 static e_device_type r_device_type;
 static int r_device_id;
 static char r_device_name[128];
@@ -35,7 +35,7 @@ static int ProcessEventElement(xmlNode * a_node)
   char dead_zone[32];
   char exponent[32];
   char* shape;
-  s_mouse_cal* mcal = cal_get_mouse(r_device_id, r_config_id);
+  s_mouse_cal* mcal = cal_get_mouse(r_device_id, r_profile_id);
 
   type = (char*) xmlGetProp(a_node, (xmlChar*) X_ATTR_TYPE);
 
@@ -200,7 +200,7 @@ static int ProcessAxisElement(xmlNode * a_node)
       }
       else
       {
-        printf("bad element name: %s", cur_node->name);
+        gwarn("bad element name: %s", cur_node->name);
         ret = -1;
       }
     }
@@ -208,7 +208,7 @@ static int ProcessAxisElement(xmlNode * a_node)
 
   if (!cur_node)
   {
-    printf("missing device element");
+    gwarn("missing device element");
     ret = -1;
   }
 
@@ -228,7 +228,7 @@ static int ProcessAxisElement(xmlNode * a_node)
       }
       else
       {
-        printf("bad element name: %s", cur_node->name);
+        gwarn("bad element name: %s", cur_node->name);
         ret = -1;
       }
     }
@@ -236,7 +236,7 @@ static int ProcessAxisElement(xmlNode * a_node)
 
   if (!cur_node)
   {
-    printf("missing event element");
+    gwarn("missing event element");
     ret = -1;
   }
 
@@ -258,7 +258,7 @@ static int ProcessAxisMapElement(xmlNode * a_node)
       }
       else
       {
-        printf("bad element name: %s", cur_node->name);
+        gwarn("bad element name: %s", cur_node->name);
         ret = -1;
       }
     }
@@ -271,15 +271,15 @@ static int ProcessConfigurationElement(xmlNode * a_node)
   int ret = 0;
   xmlNode* cur_node = NULL;
 
-  ret = GetUnsignedIntProp(a_node, X_ATTR_ID, &r_config_id);
+  ret = GetUnsignedIntProp(a_node, X_ATTR_ID, &r_profile_id);
 
   if(ret != -1)
   {
-    r_config_id--;
+    r_profile_id--;
 
-    if (r_config_id >= MAX_CONFIGURATIONS)
+    if (r_profile_id >= MAX_PROFILES)
     {
-      printf("bad configuration id: %d\n", r_config_id);
+      gwarn("bad profile id: %d\n", r_profile_id);
       ret = -1;
     }
   }
@@ -300,7 +300,7 @@ static int ProcessConfigurationElement(xmlNode * a_node)
 
   if (!cur_node)
   {
-    printf("missing axis_map element");
+    gwarn("missing axis_map element");
     ret = -1;
   }
 
@@ -320,7 +320,7 @@ static int ProcessControllerElement(xmlNode * a_node)
 
     if (r_controller_id >= MAX_CONTROLLERS)
     {
-      printf("bad controller id: %d\n", r_controller_id);
+      gwarn("bad controller id: %d\n", r_controller_id);
       ret = -1;
     }
   }
@@ -336,7 +336,7 @@ static int ProcessControllerElement(xmlNode * a_node)
       else
       {
         ret = -1;
-        printf("bad element name: %s\n", cur_node->name);
+        gwarn("bad element name: %s\n", cur_node->name);
       }
     }
   }
@@ -363,7 +363,7 @@ static int ProcessRootElement(xmlNode * a_node)
           else
           {
             ret = -1;
-            printf("bad element name: %s\n", cur_node->name);
+            gwarn("bad element name: %s\n", cur_node->name);
           }
         }
       }
@@ -371,7 +371,7 @@ static int ProcessRootElement(xmlNode * a_node)
     else
     {
       ret = -1;
-      printf("bad element name: %s\n", a_node->name);
+      gwarn("bad element name: %s\n", a_node->name);
     }
   }
   return ret;
@@ -415,7 +415,7 @@ int cfgw_modify_file(char* file)
     else
     {
       ret = -1;
-      printf("error: no root element\n");
+      gwarn("error: no root element\n");
     }
 
     if(ret != -1)
@@ -426,7 +426,7 @@ int cfgw_modify_file(char* file)
   else
   {
     ret = -1;
-    printf("error: could not parse file %s\n", file_path);
+    gwarn("error: could not parse file %s\n", file_path);
   }
 
   /*free the document */

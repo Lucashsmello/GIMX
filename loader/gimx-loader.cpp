@@ -199,13 +199,13 @@ void loaderFrame::OnButtonLoadClick(wxCommandEvent& event __attribute__((unused)
 
     ButtonLoad->Enable(false);
 
-    int answer = wxMessageBox(_("This tool is only compatible with GIMX adapters made with a USB to UART adapter and a Pro Micro board. Proceed?"), _(""), wxICON_INFORMATION | wxOK | wxCANCEL);
+    int answer = wxMessageBox(_("This tool is only compatible with GIMX adapters made with a USB to UART adapter and a Pro Micro board. Proceed?"), wxT(""), wxICON_INFORMATION | wxOK | wxCANCEL);
     if (answer != wxOK) {
         ButtonLoad->Enable(true);
         return;
     }
 
-    answer = wxMessageBox(_("Plug both sides of the adapter to the computer."), _(""), wxICON_INFORMATION | wxOK | wxCANCEL);
+    answer = wxMessageBox(_("Plug both sides of the adapter to the computer."), wxT(""), wxICON_INFORMATION | wxOK | wxCANCEL);
     if (answer != wxOK) {
         ButtonLoad->Enable(true);
         return;
@@ -220,26 +220,29 @@ void loaderFrame::OnButtonLoadClick(wxCommandEvent& event __attribute__((unused)
 
     {
         wxWindowDisabler disableAll;
-        wxBusyInfo wait(_("Unplug/replug the USB cable (Pro Micro side of the adapter)."));
+        wxBusyInfo wait(_("Unplug/replug the USB cable from/to computer USB port."));
 
-        for (count = 0; count < 40; ++count) {
+        for (count = 0; count < 1000; ++count) {
             for (i = 0; i < MAX_PORT_NB; ++i) {
-                if (ports[i] == 0) {
-                    if (check_port(i) != -1) {
-                        break;
+                int found = check_port(i);
+                if (found != -1) {
+                    if (ports[i] == 0) {
+                        break; // found
                     }
+                } else {
+                    ports[i] = 0; // removed
                 }
             }
             if (i < MAX_PORT_NB) {
                 break;
             }
-            usleep(250000);
+            usleep(10000); // we need to be aggressive to detect removal
 
             wxTheApp->Yield();
         }
     }
 
-    if (count == 40) {
+    if (count == 1000) {
         wxMessageBox(_("No new device found within 10 seconds."), _("Error"), wxICON_ERROR);
         ButtonLoad->Enable(true);
         return;

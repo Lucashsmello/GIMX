@@ -5,7 +5,7 @@
 
 #include <connectors/bluetooth/l2cap_abs.h>
 #include <gimx.h>
-#include <gpoll.h>
+#include <gimxpoll/include/gpoll.h>
 
 #include <bluetooth/l2cap.h>
 #include <bluetooth/hci.h>
@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/uio.h>
 
 #define BT_SLOT 625 //microseconds
 
@@ -33,7 +34,7 @@ struct bt_power {
 
 typedef struct
 {
-  unsigned int user;
+  void * user;
   int devid;
   bdaddr_t ba_dst;
   uint16_t psm;
@@ -376,8 +377,10 @@ static int l2cap_bluez_is_connected(int fd)
   return 0;
 }
 
-static int l2cap_bluez_connect_channel(int channel)
+static int l2cap_bluez_connect_channel(void * user)
 {
+  int channel = (intptr_t) user;
+
   int result = 0;
 
   int fd = channels.channels[channel].fd;
@@ -430,7 +433,7 @@ static int l2cap_bluez_connect_channel(int channel)
 }
 
 static int l2cap_bluez_connect(const char * bdaddr_src, const char * bdaddr_dest, unsigned short psm, int options,
-    int user, L2CAP_ABS_CONNECT_CALLBACK connect_callback, L2CAP_ABS_CLOSE_CALLBACK close_callback)
+    void * user, L2CAP_ABS_CONNECT_CALLBACK connect_callback, L2CAP_ABS_CLOSE_CALLBACK close_callback)
 {
     int fd;
     struct sockaddr_l2 addr;
@@ -488,7 +491,7 @@ static int l2cap_bluez_connect(const char * bdaddr_src, const char * bdaddr_dest
             .fp_write = l2cap_bluez_connect_channel,
             .fp_close = l2cap_bluez_connect_channel,
     };
-    gpoll_register_fd(fd, channel, &callbacks);
+    gpoll_register_fd(fd, (void *)(intptr_t) channel, &callbacks);
 
     ++channels.nb;
 
@@ -537,8 +540,10 @@ static int l2cap_bluez_recv(int channel, unsigned char* buf, int len)
     return recv(channels.channels[channel].fd, buf, len, MSG_DONTWAIT);
 }
 
-static int l2cap_bluez_connect_accept(int listen_channel)
+static int l2cap_bluez_connect_accept(void * user)
 {
+  int listen_channel = (intptr_t) user;
+
   struct sockaddr_l2 rem_addr = { 0 };
   int fd;
   char buf[sizeof("00:00:00:00:00:00")+1] = { 0 };
@@ -557,7 +562,7 @@ static int l2cap_bluez_connect_accept(int listen_channel)
   }
 
   ba2str(&rem_addr.l2_bdaddr, buf);
-  gprintf("accepted connection from %s (psm: 0x%04x)\n", buf, btohs(rem_addr.l2_psm));
+  ginfo("accepted connection from %s (psm: 0x%04x)\n", buf, btohs(rem_addr.l2_psm));
 
   bacpy(&src, &rem_addr.l2_bdaddr);
   psm = btohs(rem_addr.l2_psm);
@@ -616,7 +621,7 @@ static int l2cap_bluez_connect_accept(int listen_channel)
   return 0;
 }
 
-static int l2cap_bluez_listen(int user __attribute__((unused)), const char * bdaddr_adapter, unsigned short psm, int options,
+static int l2cap_bluez_listen(void * user __attribute__((unused)), const char * bdaddr_adapter, unsigned short psm, int options,
     L2CAP_ABS_LISTEN_ACCEPT_CALLBACK read_callback, L2CAP_ABS_CLOSE_CALLBACK close_callback)
 {
   struct sockaddr_l2 loc_addr = { 0 };
@@ -675,16 +680,16 @@ static int l2cap_bluez_listen(int user __attribute__((unused)), const char * bda
           .fp_write = NULL,
           .fp_close = l2cap_bluez_connect_accept,
   };
-  gpoll_register_fd(listen_channels.channels[channel].fd, channel, &callbacks);
+  gpoll_register_fd(listen_channels.channels[channel].fd, (void *)(intptr_t) channel, &callbacks);
 
   ++listen_channels.nb;
 
-  gprintf("listening on psm: 0x%04x\n", psm);
+  ginfo("listening on psm: 0x%04x\n", psm);
 
   return channel;
 }
 
-static void l2cap_bluez_add_source(int channel, int user, L2CAP_ABS_READ_CALLBACK read_callback, L2CAP_ABS_PACKET_CALLBACK packet_callback __attribute__((unused)), L2CAP_ABS_CLOSE_CALLBACK close_callback)
+static void l2cap_bluez_add_source(int channel, void * user, L2CAP_ABS_READ_CALLBACK read_callback, L2CAP_ABS_PACKET_CALLBACK packet_callback __attribute__((unused)), L2CAP_ABS_CLOSE_CALLBACK close_callback)
 {
   channels.channels[channel].user = user;
   GPOLL_CALLBACKS callbacks = {

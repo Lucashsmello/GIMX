@@ -3,7 +3,7 @@
  License: GPLv3
  */
 
-#include <adapter.h>
+#include <controller.h>
 #include "gimx.h"
 #include <string.h>
 #include <stdio.h>
@@ -21,7 +21,7 @@
 #include <winsock2.h> /* for htons */
 #endif
 #include <connectors/bluetooth/l2cap_abs.h>
-#include <ginput.h>
+#include <gimxinput/include/ginput.h>
 #include <report2event/report2event.h>
 
 #define DS4_DEVICE_CLASS 0x2508
@@ -179,8 +179,10 @@ struct btds4_process_t {
 
 static struct btds4_state states[MAX_CONTROLLERS] = {};
 
-static int read_ds4_sdp(int btds4_number)
+static int read_ds4_sdp(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   unsigned char buf[SDP_PACKET_SIZE];
 
   ssize_t len = l2cap_abs_get()->recv(states[btds4_number].ds4_channels.sdp.id, buf, sizeof(buf));
@@ -202,8 +204,10 @@ static int read_ds4_sdp(int btds4_number)
   return 0;
 }
 
-static int close_ds4_sdp(int btds4_number)
+static int close_ds4_sdp(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   if(state->ds4_channels.sdp.id >= 0)
@@ -215,8 +219,10 @@ static int close_ds4_sdp(int btds4_number)
   return 1;
 }
 
-static int read_ps4_sdp(int btds4_number)
+static int read_ps4_sdp(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   unsigned char buf[SDP_PACKET_SIZE];
 
   ssize_t len = l2cap_abs_get()->recv(states[btds4_number].ps4_channels.sdp.id, buf, sizeof(buf));
@@ -240,13 +246,15 @@ static int read_ps4_sdp(int btds4_number)
   return 0;
 }
 
-static int connect_ps4_control(int btds4_number);
-static int connect_ps4_interrupt(int btds4_number);
-static int close_ps4_control(int btds4_number);
-static int close_ps4_interrupt(int btds4_number);
+static int connect_ps4_control(void * user);
+static int connect_ps4_interrupt(void * user);
+static int close_ps4_control(void * user);
+static int close_ps4_interrupt(void * user);
 
-static int close_ps4_sdp(int btds4_number)
+static int close_ps4_sdp(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   if(state->ps4_channels.sdp.id >= 0)
@@ -268,14 +276,14 @@ static int close_ps4_sdp(int btds4_number)
    */
 
   l2cap_abs_get()->disconnect(state->ps4_channels.control.id);
-  close_ps4_control(btds4_number);
-  close_ps4_interrupt(btds4_number);
+  close_ps4_control(user);
+  close_ps4_interrupt(user);
 
-  gprintf("connecting with hci%d = %s to %s psm 0x%04x\n", state->dongle_index,
+  ginfo("connecting with hci%d = %s to %s psm 0x%04x\n", state->dongle_index,
       state->dongle_bdaddr.str, state->ps4_bdaddr, PSM_HID_CONTROL);
 
   if ((state->ps4_channels.control.id = l2cap_abs_get()->connect(state->dongle_bdaddr.str, state->ps4_bdaddr,
-      PSM_HID_CONTROL, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, btds4_number, connect_ps4_control, close_ps4_control)) < 0)
+      PSM_HID_CONTROL, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, user, connect_ps4_control, close_ps4_control)) < 0)
   {
     fprintf(stderr, "can't connect to control psm\n");
     return -1;
@@ -283,13 +291,13 @@ static int close_ps4_sdp(int btds4_number)
 
   state->ps4_channels.control.pending = 1;
 
-  gprintf("connecting with hci%d = %s to %s psm 0x%04x\n", state->dongle_index,
+  ginfo("connecting with hci%d = %s to %s psm 0x%04x\n", state->dongle_index,
       state->dongle_bdaddr.str, state->ps4_bdaddr, PSM_HID_INTERRUPT);
 
   if ((state->ps4_channels.interrupt.id = l2cap_abs_get()->connect(state->dongle_bdaddr.str, state->ps4_bdaddr,
-      PSM_HID_INTERRUPT, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, btds4_number, connect_ps4_interrupt, close_ps4_control)) < 0)
+      PSM_HID_INTERRUPT, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, user, connect_ps4_interrupt, close_ps4_control)) < 0)
   {
-    close_ps4_control(btds4_number);
+    close_ps4_control(user);
     fprintf(stderr, "can't connect to interrupt psm\n");
     return -1;
   }
@@ -299,15 +307,17 @@ static int close_ps4_sdp(int btds4_number)
   return 1;
 }
 
-static int read_ds4_control(int btds4_number)
+static int read_ds4_control(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   unsigned char buf[1024];
 
   ssize_t len = l2cap_abs_get()->recv(states[btds4_number].ds4_channels.control.id, buf, sizeof(buf));
 
   /*if(buf[1] == 0x04)
   {
-    printf("alter report id 0x04\n");
+    ginfo("alter report id 0x04\n");
     buf[4] = ~buf[4];
   }*/
 
@@ -328,8 +338,10 @@ static int read_ds4_control(int btds4_number)
   return 0;
 }
 
-static int close_ds4_control(int btds4_number)
+static int close_ds4_control(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   if(state->ds4_channels.control.id >= 0)
@@ -343,8 +355,10 @@ static int close_ds4_control(int btds4_number)
 
 //static int cpt = 0;
 
-static int read_ds4_interrupt(int btds4_number)
+static int read_ds4_interrupt(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   unsigned char buf[1024];
 
   int ret = l2cap_abs_get()->recv(states[btds4_number].ds4_channels.interrupt.id, buf, sizeof(buf));
@@ -392,11 +406,13 @@ static int read_ds4_interrupt(int btds4_number)
   return 0;*/
 }
 
-static int close_ds4_interrupt(int btds4_number)
+static int close_ds4_interrupt(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
-  if(state->ds4_channels.interrupt.id)
+  if(state->ds4_channels.interrupt.id >= 0)
   {
     l2cap_abs_get()->close(state->ds4_channels.interrupt.id);
     state->ds4_channels.interrupt.id = -1;
@@ -405,8 +421,10 @@ static int close_ds4_interrupt(int btds4_number)
   return 1;
 }
 
-static int read_ps4_control(int btds4_number)
+static int read_ps4_control(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   unsigned char buf[1024];
 
   ssize_t len = l2cap_abs_get()->recv(states[btds4_number].ps4_channels.control.id, buf, sizeof(buf));
@@ -478,8 +496,8 @@ static int read_ps4_control(int btds4_number)
     {
       struct timeval t;
       gettimeofday(&t, NULL);
-      printf("%ld.%06ld ", t.tv_sec, t.tv_usec);
-      printf("report id 0x%02x\n", buf[1]);
+      ginfo("%ld.%06ld ", t.tv_sec, t.tv_usec);
+      ginfo("report id 0x%02x\n", buf[1]);
     }*/
 
     int ret = l2cap_abs_get()->send(states[btds4_number].ds4_channels.control.id, buf, len, 0);
@@ -493,8 +511,10 @@ static int read_ps4_control(int btds4_number)
   return 0;
 }
 
-static int close_ps4_control(int btds4_number)
+static int close_ps4_control(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   if(state->ps4_channels.control.id >= 0)
@@ -509,32 +529,36 @@ static int close_ps4_control(int btds4_number)
   return 1;
 }
 
-static int process(int sixaxis_number __attribute__((unused)), int psm __attribute__((unused)), const unsigned char *buf __attribute__((unused)), int len __attribute__((unused)))
+static int process(void * user __attribute__((unused)), int psm __attribute__((unused)), const unsigned char *buf __attribute__((unused)), int len __attribute__((unused)))
 {
   //TODO MLA: this function could probably be removed
   return 0;
 }
 
-static int connect_ps4_control(int btds4_number)
+static int connect_ps4_control(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   state->ps4_channels.control.pending = 0;
 
   if(state->ds4_channels.control.id >= 0)
   {
-    l2cap_abs_get()->add_source(state->ps4_channels.control.id, btds4_number, read_ps4_control, process, close_ps4_control);
-    l2cap_abs_get()->add_source(state->ds4_channels.control.id, btds4_number, read_ds4_control, process, close_ds4_control);
+    l2cap_abs_get()->add_source(state->ps4_channels.control.id, user, read_ps4_control, process, close_ps4_control);
+    l2cap_abs_get()->add_source(state->ds4_channels.control.id, user, read_ds4_control, process, close_ds4_control);
   }
 
   return 0;
 }
 
-static int read_ps4_interrupt(int btds4_number)
+static int read_ps4_interrupt(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   unsigned char buf[1024];
 
-  ssize_t len = l2cap_abs_get()->recv(states[btds4_number].ps4_channels.interrupt.id, buf, sizeof(buf));
+  ssize_t len = l2cap_abs_get()->recv(states[(intptr_t) user].ps4_channels.interrupt.id, buf, sizeof(buf));
 
   if(len < 0)
   {
@@ -645,8 +669,10 @@ static int ds4_interrupt_rumble(const GE_Event * haptic)
   return ret;
 }
 
-static int close_ps4_interrupt(int btds4_number)
+static int close_ps4_interrupt(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   if(state->ps4_channels.interrupt.id >= 0)
@@ -661,16 +687,18 @@ static int close_ps4_interrupt(int btds4_number)
   return 1;
 }
 
-static int connect_ps4_interrupt(int btds4_number)
+static int connect_ps4_interrupt(void * user)
 {
+  int btds4_number = (intptr_t) user;
+
   struct btds4_state* state = states + btds4_number;
 
   state->ps4_channels.interrupt.pending = 0;
 
   if(state->ds4_channels.interrupt.id >= 0)
   {
-    l2cap_abs_get()->add_source(state->ps4_channels.interrupt.id, btds4_number, read_ps4_interrupt, process, close_ps4_interrupt);
-    l2cap_abs_get()->add_source(state->ds4_channels.interrupt.id, btds4_number, read_ds4_interrupt, process, close_ds4_interrupt);
+    l2cap_abs_get()->add_source(state->ps4_channels.interrupt.id, user, read_ps4_interrupt, process, close_ps4_interrupt);
+    l2cap_abs_get()->add_source(state->ds4_channels.interrupt.id, user, read_ds4_interrupt, process, close_ds4_interrupt);
   }
 
   return 0;
@@ -691,7 +719,7 @@ static int listen_accept_sdp(int channel, bdaddr_t * src)
     if(!bacmp(src, &cmp))
     {
       states[i].ps4_channels.sdp.id = channel;
-      l2cap_abs_get()->add_source(channel, i, read_ps4_sdp, process, close_ps4_sdp);
+      l2cap_abs_get()->add_source(channel, (void *)(intptr_t) i, read_ps4_sdp, process, close_ps4_sdp);
       break;
     }
   }
@@ -707,13 +735,13 @@ static int listen_accept_sdp(int channel, bdaddr_t * src)
       {
         ba2str(src, states[i].ds4_bdaddr);
         states[i].ds4_channels.sdp.id = channel;
-        l2cap_abs_get()->add_source(channel, i, read_ds4_sdp, process, close_ds4_sdp);
+        l2cap_abs_get()->add_source(channel, (void *)(intptr_t) i, read_ds4_sdp, process, close_ds4_sdp);
 
-        gprintf("connecting with hci%d = %s to %s psm 0x%04x\n", states[i].dongle_index,
+        ginfo("connecting with hci%d = %s to %s psm 0x%04x\n", states[i].dongle_index,
             states[i].dongle_bdaddr.str, states[i].ps4_bdaddr, PSM_HID_CONTROL);
 
         if ((states[i].ps4_channels.control.id = l2cap_abs_get()->connect(states[i].dongle_bdaddr.str, states[i].ps4_bdaddr,
-            PSM_HID_CONTROL, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, i, connect_ps4_control, close_ps4_control)) < 0)
+            PSM_HID_CONTROL, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, (void *)(intptr_t) i, connect_ps4_control, close_ps4_control)) < 0)
         {
           fprintf(stderr, "can't connect to control psm\n");
           break;
@@ -721,13 +749,13 @@ static int listen_accept_sdp(int channel, bdaddr_t * src)
 
         states[i].ps4_channels.control.pending = 1;
 
-        gprintf("connecting with hci%d = %s to %s psm 0x%04x\n", states[i].dongle_index,
+        ginfo("connecting with hci%d = %s to %s psm 0x%04x\n", states[i].dongle_index,
             states[i].dongle_bdaddr.str, states[i].ps4_bdaddr, PSM_HID_INTERRUPT);
 
         if ((states[i].ps4_channels.interrupt.id = l2cap_abs_get()->connect(states[i].dongle_bdaddr.str, states[i].ps4_bdaddr,
-            PSM_HID_INTERRUPT, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, i, connect_ps4_interrupt, close_ps4_interrupt)) < 0)
+            PSM_HID_INTERRUPT, L2CAP_ABS_LM_MASTER | L2CAP_ABS_LM_AUTH | L2CAP_ABS_LM_ENCRYPT, (void *)(intptr_t) i, connect_ps4_interrupt, close_ps4_interrupt)) < 0)
         {
-          close_ps4_control(i);
+          close_ps4_control((void *)(intptr_t) i);
           fprintf(stderr, "can't connect to interrupt psm\n");
           break;
         }
@@ -764,8 +792,8 @@ static int listen_accept_control(int channel, bdaddr_t * src)
       states[i].ds4_channels.control.id = channel;
       if(states[i].ps4_channels.control.id >= 0 && !states[i].ps4_channels.control.pending)
       {
-        l2cap_abs_get()->add_source(channel, i, read_ds4_control, process, close_ds4_control);
-        l2cap_abs_get()->add_source(states[i].ps4_channels.control.id, i, read_ps4_control, process, close_ps4_control);
+        l2cap_abs_get()->add_source(channel, (void *)(intptr_t) i, read_ds4_control, process, close_ds4_control);
+        l2cap_abs_get()->add_source(states[i].ps4_channels.control.id, (void *)(intptr_t) i, read_ps4_control, process, close_ps4_control);
       }
       break;
     }
@@ -796,8 +824,8 @@ static int listen_accept_interrupt(int channel, bdaddr_t * src)
       states[i].ds4_channels.interrupt.id = channel;
       if(states[i].ps4_channels.interrupt.id >= 0 && !states[i].ps4_channels.interrupt.pending)
       {
-        l2cap_abs_get()->add_source(channel, i, read_ds4_interrupt, process, close_ds4_interrupt);
-        l2cap_abs_get()->add_source(states[i].ps4_channels.interrupt.id, i, read_ps4_interrupt, process, close_ps4_interrupt);
+        l2cap_abs_get()->add_source(channel, (void *)(intptr_t) i, read_ds4_interrupt, process, close_ds4_interrupt);
+        l2cap_abs_get()->add_source(states[i].ps4_channels.interrupt.id, (void *)(intptr_t) i, read_ps4_interrupt, process, close_ps4_interrupt);
       }
       break;
     }
@@ -812,23 +840,25 @@ static int listen_accept_interrupt(int channel, bdaddr_t * src)
   return 0;
 }
 
-static int listen_close(int channel)
+static int listen_close(void * user)
 {
+  int channel = (intptr_t) user;
+
   if(channel == listening_channels.sdp)
   {
-    printf("close sdp source\n");
+    ginfo("close sdp source\n");
     l2cap_abs_get()->close(listening_channels.sdp);
     listening_channels.sdp = -1;
   }
   else if(channel == listening_channels.hid_control)
   {
-    printf("close hid control source\n");
+    ginfo("close hid control source\n");
     l2cap_abs_get()->close(listening_channels.hid_control);
     listening_channels.hid_control = -1;
   }
   else if(channel == listening_channels.hid_interrupt)
   {
-    printf("close hid interrupt source\n");
+    ginfo("close hid interrupt source\n");
     l2cap_abs_get()->close(listening_channels.hid_interrupt);
     listening_channels.hid_interrupt = -1;
   }
@@ -901,7 +931,7 @@ int btds4_listen(int btds4_number)
   }
   if(listening_channels.sdp < 0)
   {
-    if((listening_channels.sdp = l2cap_abs_get()->listen(btds4_number, state->dongle_bdaddr.str, PSM_SDP, L2CAP_ABS_LM_MASTER, listen_accept_sdp, listen_close)) < 0)
+    if((listening_channels.sdp = l2cap_abs_get()->listen((void *)(intptr_t) btds4_number, state->dongle_bdaddr.str, PSM_SDP, L2CAP_ABS_LM_MASTER, listen_accept_sdp, listen_close)) < 0)
     {
       return -1;
     }
@@ -909,7 +939,7 @@ int btds4_listen(int btds4_number)
 
   if(listening_channels.hid_control < 0)
   {
-    if((listening_channels.hid_control = l2cap_abs_get()->listen(btds4_number, state->dongle_bdaddr.str, PSM_HID_CONTROL, L2CAP_ABS_LM_MASTER, listen_accept_control, listen_close)) < 0)
+    if((listening_channels.hid_control = l2cap_abs_get()->listen((void *)(intptr_t) btds4_number, state->dongle_bdaddr.str, PSM_HID_CONTROL, L2CAP_ABS_LM_MASTER, listen_accept_control, listen_close)) < 0)
     {
       return -1;
     }
@@ -917,7 +947,7 @@ int btds4_listen(int btds4_number)
 
   if(listening_channels.hid_interrupt < 0)
   {
-    if((listening_channels.hid_interrupt = l2cap_abs_get()->listen(btds4_number, state->dongle_bdaddr.str, PSM_HID_INTERRUPT, L2CAP_ABS_LM_MASTER, listen_accept_interrupt, listen_close)) < 0)
+    if((listening_channels.hid_interrupt = l2cap_abs_get()->listen((void *)(intptr_t) btds4_number, state->dongle_bdaddr.str, PSM_HID_INTERRUPT, L2CAP_ABS_LM_MASTER, listen_accept_interrupt, listen_close)) < 0)
     {
       return -1;
     }
@@ -1018,15 +1048,15 @@ void btds4_close(int btds4_number)
    * todo: close any USB device that was opened!
    */
 
-  close_ps4_sdp(btds4_number);
-  close_ps4_interrupt(btds4_number);
-  close_ps4_control(btds4_number);
+  close_ps4_sdp((void *)(intptr_t) btds4_number);
+  close_ps4_interrupt((void *)(intptr_t) btds4_number);
+  close_ps4_control((void *)(intptr_t) btds4_number);
 
   /*
    * todo: deactivate this if we are working with a USB device
    */
 
-  close_ds4_sdp(btds4_number);
-  close_ds4_interrupt(btds4_number);
-  close_ds4_control(btds4_number);
+  close_ds4_sdp((void *)(intptr_t) btds4_number);
+  close_ds4_interrupt((void *)(intptr_t) btds4_number);
+  close_ds4_control((void *)(intptr_t) btds4_number);
 }

@@ -1,4 +1,12 @@
-DIRS = controller updater configupdater gasync gpp configeditor
+DIRS = gimxcontroller gimxdownloader gimxupdater gimxconfigupdater gimxlog gimxhid gimxinput gimxpoll gimxprio gimxserial gimxtimer gimxusb gimxgpp gimxconfigeditor
+
+ifneq ($(OS),Windows_NT)
+UHID=1
+endif
+
+ifeq ($(UHID),1)
+DIRS := gimxuhid $(DIRS)
+endif
 
 BUILDDIRS = $(DIRS:%=build-%)
 INSTALLDIRS = $(DIRS:%=install-%)
@@ -8,11 +16,27 @@ UNINSTALLDIRS = $(DIRS:%=uninstall-%)
 all: $(BUILDDIRS)
 $(DIRS): $(BUILDDIRS)
 $(BUILDDIRS):
-	$(MAKE) -C $(@:build-%=%)
+	$(MAKE) -C $(@:build-%=%) UHID=$(UHID)
 
-build-configeditor: build-controller
-build-configeditor: build-gasync
-build-gpp: build-gasync
+build-gimxhid: build-gimxlog
+build-gimxpoll: build-gimxlog
+build-gimxprio: build-gimxlog
+build-gimxserial: build-gimxlog
+build-gimxtimer: build-gimxlog
+build-gimxuhid: build-gimxlog
+
+build-gimxconfigeditor: build-gimxcontroller
+build-gimxconfigeditor: build-gimxhid build-gimxinput build-gimxtimer build-gimxpoll
+build-gimxgpp: build-gimxhid
+ifeq ($(UHID),1)
+build-input: build-gimxuhid
+endif
+build-gimxinput: build-gimxhid build-gimxpoll
+ifeq ($(OS),Windows_NT)
+build-gimxusb: build-gimxtimer
+endif
+build-gimxupdater: build-gimxdownloader
+build-gimxconfigupdater: build-gimxdownloader
 
 clean: $(CLEANDIRS)
 $(CLEANDIRS): 

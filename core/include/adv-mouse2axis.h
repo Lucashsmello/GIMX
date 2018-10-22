@@ -8,7 +8,7 @@
 #ifndef ADV_MOUSE2AXIS_H_
 #define ADV_MOUSE2AXIS_H_
 
-#include <adapter.h>
+#include <controller.h>
 
 typedef enum {
 	false, true
@@ -16,11 +16,12 @@ typedef enum {
 
 typedef struct {
 	boolean preserve_angle;
-	boolean motion_residue_extrapolation; // if true, accepts too low or too high motion_residues.
+	boolean motion_residue_extrapolation; // if true, accepts very low or very high motion_residues.
 	boolean zero_axis_is_positive;
 } mouse2axis_config;
 
-double adv_mouse2axis(s_adapter* controller, int which, double x, double y, s_axis_props* axis_props, double exp,
-		double multiplier, int dead_zone, const mouse2axis_config* m2a_config);
+void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector * input, s_mouse_control * mc,
+		const mouse2axis_config* m2a_config);
+void loadMouse2axisTable(const char* filename);
 
 #endif /* ADV_MOUSE2AXIS_H_ */

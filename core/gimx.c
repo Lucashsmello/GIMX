@@ -1,13 +1,13 @@
 /*
- Copyright (c) 2016 Mathieu Laurendeau <mat.lau@laposte.net>
+ Copyright (c) 2017 Mathieu Laurendeau <mat.lau@laposte.net>
  License: GPLv3
  */
 
-#include <stdio.h> //fprintf
 #include <locale.h> //internationalization
 #include <signal.h> //to catch SIGINT
 #include <errno.h> //to print errors
 #include <string.h> //to print errors
+#include <limits.h> //PATH_MAX
 
 #ifndef WIN32
 #include <pwd.h> //to get the homedir
@@ -25,17 +25,19 @@
 #include "macros.h"
 #include "config_reader.h"
 #include "calibration.h"
+#include "control.h"
 #include "display.h"
 #include "mainloop.h"
 #include "connectors/bluetooth/bt_abs.h"
 #include "connectors/usb_con.h"
 #include "args.h"
-#include <adapter.h>
+#include <controller.h>
 #include <stats.h>
-#include <pcprog.h>
+#include <gimxgpp/pcprog.h>
 #include "../directories.h"
-#include <gprio.h>
-#include <gusb.h>
+#include <gimxprio/include/gprio.h>
+#include <gimxusb/include/gusb.h>
+#include <gimxlog/include/glog.h>
 
 #define DEFAULT_POSTPONE_COUNT 3 //unit = DEFAULT_REFRESH_PERIOD
 
@@ -49,6 +51,7 @@ s_gimx_params gimx_params =
   .frequency_scale = 1,
   .status = 0,
   .curses = 0,
+  .curses_status = 0,
   .debug = { 0 },
   .config_file = NULL,
   .postpone_count = DEFAULT_POSTPONE_COUNT,
@@ -58,6 +61,8 @@ s_gimx_params gimx_params =
   .logfilename = NULL,
   .logfile = NULL,
   .skip_leds = 0,
+  .ff_conv = 0,
+  .inactivity_timeout = 0,
 };
 
 #ifdef WIN32
@@ -122,9 +127,11 @@ int process_event(GE_Event* event)
       break;
     case GE_KEYDOWN:
       cal_key(event->key.keysym, 1);
+      control_key(event->key.keysym, 1);
       break;
     case GE_KEYUP:
       cal_key(event->key.keysym, 0);
+      control_key(event->key.keysym, 0);
       break;
   }
 
@@ -154,16 +161,73 @@ void show_devices()
   }
 }
 
+void show_config()
+{
+  if (gimx_params.config_file == NULL)
+  {
+    return;
+  }
+
+  char file_path[PATH_MAX];
+
+  snprintf(file_path, sizeof(file_path), "%s%s%s%s", gimx_params.homedir, GIMX_DIR, CONFIG_DIR, gimx_params.config_file);
+
+  FILE * fp = fopen(file_path, "r");
+  if (fp == NULL)
+  {
+    gwarn("failed to dump %s\n", file_path);
+  }
+  else
+  {
+    printf("Dump of %s:\n", file_path);
+    char line[LINE_MAX];
+    while (fgets(line, sizeof(line), fp))
+    {
+      printf("%s", line);
+    }
+    fclose(fp);
+  }
+}
+
+void grab()
+{
+  if(gimx_params.autograb)
+  {
+    int grab = 0;
+    int i;
+    for (i = 0; i < MAX_CONTROLLERS; ++i)
+    {
+      // check if config has a keyboard binding or a mouse binding
+      // in most cases window focus is required for getting keyboard/mouse events
+      // if config only has joystick bindings, window focus is not required, and grabbing mouse is not needed
+      if(adapter_get_device(E_DEVICE_TYPE_MOUSE, i) != -1 || adapter_get_device(E_DEVICE_TYPE_KEYBOARD, i) != -1)
+      {
+        grab = 1;
+      }
+    }
+    if (grab)
+    {
+      ginput_grab();
+    }
+  }
+  else if(gimx_params.grab)
+  {
+    ginput_grab();
+  }
+}
+
 int main(int argc, char *argv[])
 {
   e_gimx_status status = E_GIMX_STATUS_SUCCESS;
 
   GE_Event kgevent = { .key = { .type = GE_KEYDOWN } };
 
+  glog_set_all_levels(E_GLOG_LEVEL_INFO);
+
 #ifdef WIN32
   if (!SetConsoleOutputCP(CP_UTF8))
   {
-    eprintf("SetConsoleOutputCP(CP_UTF8) failed\n");
+    gerror("SetConsoleOutputCP(CP_UTF8) failed\n");
     exit(-1);
   }
 #endif
@@ -175,7 +239,7 @@ int main(int argc, char *argv[])
 #else
   if (SetConsoleCtrlHandler((PHANDLER_ROUTINE)ConsoleHandler, TRUE) == 0)
   {
-    eprintf("SetConsoleCtrlHandler failed\n");
+    gerror("SetConsoleCtrlHandler failed\n");
     exit(-1);
   }
 #endif
@@ -189,7 +253,7 @@ int main(int argc, char *argv[])
   textdomain( "gimx" );
 
   setlocale( LC_NUMERIC, "C" ); /* Make sure we use '.' to write doubles. */
-  
+
 #ifndef WIN32
   setlinebuf(stdout);
 
@@ -198,7 +262,7 @@ int main(int argc, char *argv[])
   static char path[MAX_PATH];
   if(SHGetFolderPath( NULL, CSIDL_APPDATA , NULL, 0, path ))
   {
-    eprintf("SHGetFolderPath failed\n");
+    gerror("SHGetFolderPath failed\n");
     status = E_GIMX_STATUS_GENERIC_ERROR;
     goto QUIT;
   }
@@ -207,14 +271,13 @@ int main(int argc, char *argv[])
 
   if (gprio() < 0)
   {
-    eprintf("failed to set process priority");
+    gwarn("failed to set process priority\n")
   }
 
   gpppcprog_read_user_ids(gimx_params.homedir, GIMX_DIR);
 
   if(args_read(argc, argv, &gimx_params) < 0)
   {
-    eprintf(_("wrong argument"));
     status = E_GIMX_STATUS_GENERIC_ERROR;
     goto QUIT;
   }
@@ -239,7 +302,6 @@ int main(int argc, char *argv[])
   status = adapter_detect();
   if(status != E_GIMX_STATUS_SUCCESS)
   {
-    eprintf(_("no adapter detected"));
     goto QUIT;
   }
 
@@ -250,11 +312,11 @@ int main(int argc, char *argv[])
      */
     gimx_params.refresh_period = controller_get_default_refresh_period(adapter_get(0)->ctype);
     gimx_params.postpone_count = 3 * DEFAULT_REFRESH_PERIOD / gimx_params.refresh_period;
-    printf(_("using default refresh period: %.02fms\n"), (double)gimx_params.refresh_period/1000);
+    ginfo(_("using default refresh period: %.02fms\n"), (double)gimx_params.refresh_period/1000);
   }
   else if(gimx_params.refresh_period < controller_get_min_refresh_period(adapter_get(0)->ctype))
   {
-    fprintf(stderr, "Refresh period should be at least %.02fms\n", (double)controller_get_min_refresh_period(adapter_get(0)->ctype)/1000);
+    gerror("Refresh period should be at least %.02fms\n", (double)controller_get_min_refresh_period(adapter_get(0)->ctype)/1000);
     status = E_GIMX_STATUS_GENERIC_ERROR;
     goto QUIT;
   }
@@ -273,9 +335,9 @@ int main(int argc, char *argv[])
     {
       adapter->send_command = 1;
       event = 1;
-      if(adapter->dst_fd < 0)
+      if(adapter->remote.fd < 0)
       {
-        printf("The --event argument may require running two gimx instances.\n");
+        ginfo("The --event argument may require running two gimx instances.\n");
       }
     }
   }
@@ -283,7 +345,6 @@ int main(int argc, char *argv[])
   {
     if(adapter_start() < 0)
     {
-      eprintf(_("failed to start the adapter"));
       status = E_GIMX_STATUS_GENERIC_ERROR;
       goto QUIT;
     }
@@ -335,11 +396,7 @@ int main(int argc, char *argv[])
   if (gimx_params.logfile != NULL)
   {
     show_devices();
-  }
-
-  if(gimx_params.grab)
-  {
-    ginput_grab();
+    show_config();
   }
 
   if(gimx_params.config_file)
@@ -369,7 +426,11 @@ int main(int argc, char *argv[])
     }
 
     cfg_read_calibration();
+
+    cfg_pair_mouse_mappers();
   }
+
+  grab();
 
   ginput_release_unused();
 
@@ -384,7 +445,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-      fprintf(stderr, _("Unknown key name for argument --keygen: '%s'\n"), gimx_params.keygen);
+      gerror(_("Unknown key name for argument --keygen: '%s'\n"), gimx_params.keygen);
       status = E_GIMX_STATUS_GENERIC_ERROR;
       goto QUIT;
     }
@@ -394,11 +455,13 @@ int main(int argc, char *argv[])
 
   if(gimx_params.curses)
   {
+    glog_set_all_levels(E_GLOG_LEVEL_NONE);
+    gimx_params.curses_status = 1;
     display_init();
     stats_init(0);
   }
 #ifndef WIN32
-  else
+  else if (gimx_params.logfile == NULL)
   {
     struct termios term;
     tcgetattr(STDOUT_FILENO, &term);
@@ -409,30 +472,33 @@ int main(int argc, char *argv[])
 
   if(adapter_start() < 0)
   {
-    eprintf(_("failed to start the adapter"));
     status = E_GIMX_STATUS_GENERIC_ERROR;
     goto QUIT;
   }
 
   usb_poll_interrupts();
 
-  mainloop();
+  e_gimx_status mstatus = mainloop();
+  if (mstatus != E_GIMX_STATUS_SUCCESS)
+  {
+    status = mstatus;
+  }
 
-  gprintf(_("Exiting\n"));
+  ginfo(_("Exiting\n"));
 
-  QUIT:
+  QUIT: ;
+
+  e_gimx_status clean_status = adapter_clean();
+  if (status == E_GIMX_STATUS_SUCCESS && clean_status != E_GIMX_STATUS_SUCCESS)
+  {
+    status = clean_status;
+  }
 
   macros_clean();
   cfg_clean();
   ginput_quit();
 
   ghid_exit();
-
-  e_gimx_status clean_status = adapter_clean();
-  if (clean_status != E_GIMX_STATUS_SUCCESS)
-  {
-    status = clean_status;
-  }
 
   gserial_exit();
 
@@ -477,7 +543,7 @@ int main(int argc, char *argv[])
         int ret = chown(file, getpwuid(getuid())->pw_uid, getpwuid(getuid())->pw_gid);
         if (ret < 0)
         {
-          eprintf("failed to set ownership of the gimx status file");
+          gerror("failed to set ownership of the gimx status file\n");
         }
 #endif
       }
@@ -493,7 +559,7 @@ int main(int argc, char *argv[])
     int ret = chown(file_path, getpwuid(getuid())->pw_uid, getpwuid(getuid())->pw_gid);
     if (ret < 0)
     {
-      eprintf("failed to set ownership of the gimx log file");
+      gerror("failed to set ownership of the gimx log file\n");
     }
 #endif
   }
@@ -503,7 +569,7 @@ int main(int argc, char *argv[])
     display_end();
   }
 #ifndef WIN32
-  else
+  else if (gimx_params.logfile == NULL)
   {
     struct termios term;
     tcgetattr(STDOUT_FILENO, &term);

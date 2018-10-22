@@ -6,12 +6,13 @@
 #ifndef MACROS_H
 #define MACROS_H
 
-#include <ginput.h>
+#include <gimxinput/include/ginput.h>
 
 void macro_lookup(GE_Event*);
 unsigned int macro_process();
 
 void macros_init();
 void macros_clean();
+int macros_process_line(const char* line);
 
 #endif
