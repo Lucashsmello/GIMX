@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include "log.h"
+#include "adv-mouse2axis.h"
 
 #define DEV_HIDRAW "/dev/hidraw"
 #ifndef WIN32
