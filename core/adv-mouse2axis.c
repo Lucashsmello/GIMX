@@ -28,9 +28,9 @@ static void postProcessTranslation(mouse2axisPoint* p, double x_mouse, double y_
 	if (x_mouse <= 0) {
 		p->mouse_x *= -1;
 		p->x *= -1;
-		if (m2a_config->zero_axis_is_positive == false && p->x < -64) {
-			p->x--;
-		}
+//		if (m2a_config->zero_axis_is_positive == false && p->x < -64) {
+//			p->x--;
+//		}
 	} else {
 		if (m2a_config->zero_axis_is_positive == true) {
 			p->x--;
@@ -39,9 +39,9 @@ static void postProcessTranslation(mouse2axisPoint* p, double x_mouse, double y_
 	if (y_mouse <= 0) {
 		p->mouse_y *= -1;
 		p->y *= -1;
-		if (m2a_config->zero_axis_is_positive == false && p->y < -64) {
-			p->y--;
-		}
+//		if (m2a_config->zero_axis_is_positive == false && p->y < -64) {
+//			p->y--;
+//		}
 	} else {
 		if (m2a_config->zero_axis_is_positive == true) {
 			p->y--;
@@ -198,7 +198,8 @@ static void fixRoundingError(mouse2axisPoint* p, double x_mouse, double y_mouse,
 static mouse2axisPoint mouse2axis_translation(double x_mouse, double y_mouse, double dead_zone, double exp,
 		const mouse2axis_config* m2a_config) {
 	mouse2axisPoint ret;
-	const int max_pos_axis = m2a_config->zero_axis_is_positive == true ? 128 : 127;
+//	const int max_pos_axis = m2a_config->zero_axis_is_positive == true ? 128 : 127;
+	const int max_pos_axis = 128;
 
 	if (x_mouse == 0 && y_mouse == 0) {
 		ret.x = 0;
@@ -267,8 +268,14 @@ static double calculateMotionResidue(int axis_out, double v_out, double v_in, do
 void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector * input, s_mouse_control * mc,
 		const mouse2axis_config* m2a_config) {
 	s_mapper * mapper_y = mapper_x->other;
+	double dz_x = mapper_x->dead_zone;
 	if (input->x == 0 && input->y == 0) {
-		controller->axis[mapper_x->axis_props.axis] = controller->axis[mapper_y->axis_props.axis] = 0;
+		controller->axis[mapper_y->axis_props.axis] = 0;
+		if (dz_x < 0) {
+			controller->axis[mapper_x->axis_props.axis] = dz_x;
+		} else {
+			controller->axis[mapper_x->axis_props.axis] = 0;
+		}
 		mc->residue.x = mc->residue.y = 0;
 		return;
 	}
@@ -279,8 +286,13 @@ void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector *
 	double y = input->y * multiplier_y;
 	mouse2axisPoint p;
 	if (mouse2axis_tablesize <= 0) {
-		double dz = mapper_y->dead_zone;
-		dz = dz / 100 + mapper_x->dead_zone;
+		double dz;
+		if (dz_x >= 0) { //GAMB
+			dz = mapper_y->dead_zone;
+			dz = dz / 100 + dz_x;
+		} else {
+			dz = 0;
+		}
 		double exponent = mapper_x->exponent;
 		multiplier_x = pow(multiplier_x, 1 / exponent);
 		multiplier_y = pow(multiplier_y, 1 / exponent);
@@ -289,11 +301,16 @@ void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector *
 		p = lookUpTable(x, y, m2a_config);
 	}
 
-	controller->axis[mapper_x->axis_props.axis] = p.x;
-	controller->axis[mapper_y->axis_props.axis] = p.y;
-
 	mc->residue.x = calculateMotionResidue(p.x, p.mouse_x, x, multiplier_x, m2a_config);
 	mc->residue.y = calculateMotionResidue(p.y, p.mouse_y, y, multiplier_y, m2a_config);
+
+	if (dz_x < 0) { //GAMB
+		p.x--;
+	}
+
+	controller->axis[mapper_x->axis_props.axis] = clamp(-128, p.x, 127);
+	controller->axis[mapper_y->axis_props.axis] = clamp(-128, p.y, 127);
+
 //	printf("in: (%lf,%lf) move:(%d,%d) residue(%lf,%lf)\n", x, y, p.x, p.y, mc->residue.x, mc->residue.y);
 //	mc->residue.x = 0;
 //	mc->residue.y = 0;

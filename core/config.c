@@ -1158,7 +1158,11 @@ static void mouse2axis(int device, s_adapter* controller, const s_mapper * mappe
 	mouse2axis_config m2a_config;
 	m2a_config.motion_residue_extrapolation = true;
 	m2a_config.preserve_angle = true;
-	m2a_config.zero_axis_is_positive = true;
+	if(mapper_x->dead_zone>=0){
+	  m2a_config.zero_axis_is_positive = true;
+	}else{
+	  m2a_config.zero_axis_is_positive = false;
+	}
 	adv_mouse2axis(controller, mapper_x, input, mc, &m2a_config);
 }
 
