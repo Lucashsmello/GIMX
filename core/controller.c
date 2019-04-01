@@ -26,6 +26,8 @@
 #include <gimxpoll/include/gpoll.h>
 
 #include <haptic/haptic_core.h>
+#include "calibration.h"
+#include <float.h>
 
 #define BAUDRATE 500000 //bps
 #define SERIAL_TIMEOUT 1000 //millisecond
@@ -136,6 +138,48 @@ static void adapter_dump_state(int adapter)
   gstatus("\n");
 }
 
+static float float_swap(float x)
+{
+  union V {
+    float f;
+    uint32_t i;
+  };
+  union V val;
+  val.f = x;
+  val.i = htonl(val.i);
+  return val.f;
+}
+
+static void handlePacketConfig(const s_network_packet_config* buf)
+{
+  float s = float_swap(buf->sensibility);
+  if (s < FLT_MAX && s >= 0) {
+    printf("setting sensibility=%f\n", s);
+    cal_setSensibility(s);
+  }
+  int16_t dx = ntohs(buf->dead_zone_X);
+  if (dx < INT16_MAX) {
+    printf("setting dx=%d\n", dx);
+    cal_setDeadzoneX(dx);
+  }
+  int16_t dy = ntohs(buf->dead_zone_Y);
+  if (dy < INT16_MAX) {
+    printf("setting dy=%d\n", dy);
+    cal_setDeadzoneY(dy);
+  }
+}
+
+static s_network_packet_config handlePacketGetConfig()
+{
+  s_network_packet_config config_pkg;
+  const s_mouse_cal* mcal = cal_get_mouse(current_mouse, current_conf);
+  config_pkg.packet_type = E_NETWORK_PACKET_GETCONFIG;
+  config_pkg.sensibility = float_swap(*mcal->mx);
+  config_pkg.dead_zone_X = htons(*mcal->dzx);
+  config_pkg.dead_zone_Y = htons(*mcal->dzy);
+  return config_pkg;
+}
+
 /*
  * Read a packet from a remote GIMX client.
  * The packet can be:
@@ -203,6 +247,30 @@ static int network_read_callback(void * user)
       adapters[adapter].send_command = 1;
     }
     break;
+  case E_NETWORK_PACKET_EXIT:
+      set_done(1);
+      break;
+  case E_NETWORK_PACKET_SETCONFIG:
+
+    handlePacketConfig((s_network_packet_config*) buf);
+    break;
+  case E_NETWORK_PACKET_GETCONFIG:
+  {
+    s_network_packet_config config_pkg = handlePacketGetConfig();
+    if (udp_sendto(adapters[adapter].src_fd, (void *) &config_pkg, sizeof(config_pkg), (struct sockaddr*) &sa, salen) < 0) {
+      gwarn("%s: can't send configuration values\n", __func__);
+      return 0;
+    }
+    break;
+  }
+  case E_NETWORK_PACKET_SAVECALIBRATION:
+  {
+    cal_save();
+    cal_update_display();
+    break;
+  }
+  default:
+    gwarn("%s: packet_type not recognized",__func__);
   }
   // require a report to be sent immediately, except for a Sixaxis controller working over bluetooth
   if(adapters[adapter].ctype == C_TYPE_SIXAXIS && adapters[adapter].atype == E_ADAPTER_TYPE_BLUETOOTH)
@@ -366,9 +434,9 @@ static int adapter_forward_interrupt_out(int adapter, unsigned char* data, unsig
   if(adapters[adapter].ctype == C_TYPE_XONE_PAD && data[0] == 0x06 && data[1] == 0x20)
   {
     adapters[adapter].status = 1;
-    if (adapters[adapter].joystick >= 0 && adapters[adapter].joystick != usb_get_joystick(adapter))
+    if (adapters[adapter].ff_core == NULL)
     {
-      adapters[adapter].forward_out_reports = 0;
+      adapters[adapter].forward_out_reports = usb_forward_output(adapter, adapters[adapter].joystick);
     }
   }
   return usb_send_interrupt_out(adapter, data, length);
@@ -830,13 +898,11 @@ int adapter_start()
     {
       if(adapter->serial.device != NULL)
       {
-        if (adapter->joystick >= 0)
+        if (adapter->ff_core == NULL)
         {
-          if (usb_get_joystick(i) == adapter->joystick)
-          {
-              adapter->forward_out_reports = 1;
-          }
+          adapter->forward_out_reports = usb_forward_output(i, adapter->joystick);
         }
+
         switch(adapter->ctype)
         {
           case C_TYPE_XONE_PAD:
