@@ -38,9 +38,12 @@ void cal_init();
 int cal_get_controller(int);
 void cal_set_controller(int, int);
 void calibration_test();
-void cal_setSensibility(double);
-void cal_setDeadzoneX(int);
-void cal_setDeadzoneY(int);
+void cal_set_sensibility(double);
+void cal_set_deadzone_x(int);
+void cal_set_deadzone_y(int);
+void cal_set_exponent_x(double);
+void cal_set_exponent_y(double);
+void cal_set_yxratio(double);
 void cal_save();
 void cal_update_display();
 
