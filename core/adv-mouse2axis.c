@@ -301,8 +301,16 @@ void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector *
 		p = lookUpTable(x, y, m2a_config);
 	}
 
-	mc->residue.x = calculateMotionResidue(p.x, p.mouse_x, x, multiplier_x, m2a_config);
-	mc->residue.y = calculateMotionResidue(p.y, p.mouse_y, y, multiplier_y, m2a_config);
+    if(gimx_params.subpositions)
+    {
+	    mc->residue.x = calculateMotionResidue(p.x, p.mouse_x, x, multiplier_x, m2a_config);
+	    mc->residue.y = calculateMotionResidue(p.y, p.mouse_y, y, multiplier_y, m2a_config);
+    }
+    else
+    {
+        mc->residue.x = 0;
+        mc->residue.y = 0;
+    }
 
 	if (dz_x < 0) { //GAMB
 		p.x--;
@@ -312,6 +320,5 @@ void adv_mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector *
 	controller->axis[mapper_y->axis_props.axis] = clamp(-128, p.y, 127);
 
 //	printf("in: (%lf,%lf) move:(%d,%d) residue(%lf,%lf)\n", x, y, p.x, p.y, mc->residue.x, mc->residue.y);
-//	mc->residue.x = 0;
-//	mc->residue.y = 0;
+
 }

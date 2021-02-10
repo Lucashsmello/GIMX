@@ -1059,6 +1059,7 @@ static void mouse2axis1d(int device, s_adapter* controller, const s_mapper * map
   }
 }
 
+/*
 static double update_axis(int * axis, double dead_zone, double z, double max_axis, double min_axis)
 {
   double raw = z;
@@ -1077,6 +1078,7 @@ static double update_axis(int * axis, double dead_zone, double z, double max_axi
 
   return raw;
 }
+*/
 
 void update_residue(double axis_scale, const s_mapper * mapper_x, const s_mapper * mapper_y, s_vector * input,
         int axis_x, int axis_y, s_vector * output_raw, s_vector * multipliers, double exponent, s_mouse_control * mc)
@@ -1153,7 +1155,7 @@ void update_residue(double axis_scale, const s_mapper * mapper_x, const s_mapper
   }
 }
 
-static void mouse2axis(int device, s_adapter* controller, const s_mapper * mapper_x, s_vector * input, s_mouse_control * mc) {
+static void mouse2axis(s_adapter* controller, const s_mapper * mapper_x, s_vector * input, s_mouse_control * mc) {
 	mouse2axis_config m2a_config;
 	m2a_config.motion_residue_extrapolation = true;
 	m2a_config.preserve_angle = true;
@@ -1165,6 +1167,7 @@ static void mouse2axis(int device, s_adapter* controller, const s_mapper * mappe
 	adv_mouse2axis(controller, mapper_x, input, mc, &m2a_config);
 }
 
+/*
 static int calibrate_dead_zone(int device, int * axis_x, int * axis_y, s_vector * dead_zones, s_mouse_control * mc)
 {
   if(device == current_mouse)
@@ -1261,6 +1264,7 @@ static void mouse2axis2d(int device, s_adapter* controller, const s_mapper * map
     update_residue(axis_scale, mapper_x, mapper_y, input, *axis_x, *axis_y, &raw_output, &multipliers, exponent, mc);
   }
 }
+*/
 
 void update_dbutton_axis(s_mapper* mapper, int c_id, int axis)
 {
@@ -1564,7 +1568,7 @@ void cfg_process_event(GE_Event* event)
                 if (mapper->axis == AXIS_X)
                 {
 //                  mouse2axis2d(device, controller, mapper, &motion, mc);
-                	mouse2axis(device, controller, mapper, &motion, mc);
+                	mouse2axis(controller, mapper, &motion, mc);
                 }
                 else
                 {
